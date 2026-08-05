@@ -20,6 +20,7 @@ project(sample_player C CXX)
 add_subdirectory(lib/FatFsCore)
 add_subdirectory(app/AudioPlayer)
 add_subdirectory(app/FileSystem)
+add_subdirectory(app/UserInterface)
 
 add_subdirectory(hw_interfaces/linux)
 
@@ -35,10 +36,12 @@ target_link_libraries(sample_player PRIVATE
     -Wl,--start-group
     AudioPlayer
     FileSystem
+    UserInterface
     null_audio_codec
     Display
     posix_block_device
     FatFsCore
+    ConsoleInputHandler
     -Wl,--end-group
 )
 

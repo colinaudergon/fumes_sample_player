@@ -41,4 +41,6 @@ disk.img
 *.app
 
 emulator_fs/*
+build_wsl
+build_wsl/*
 # End of https://www.toptal.com/developers/gitignore/api/c++

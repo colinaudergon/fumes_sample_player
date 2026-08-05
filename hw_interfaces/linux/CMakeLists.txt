@@ -3,4 +3,5 @@
 add_subdirectory(audio_codec)
 add_subdirectory(posix_block_device)
 add_subdirectory(display)
+add_subdirectory(user_input)
 

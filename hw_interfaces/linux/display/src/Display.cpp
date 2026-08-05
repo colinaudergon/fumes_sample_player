@@ -44,3 +44,13 @@ void hw_interface::Display::ShowWave(float *buffer, size_t buffer_size)
         }
     }
 }
+
+int hw_interface::Display::ShowText(const char *text)
+{
+    if (text == nullptr)
+    {
+        return -1;
+    }
+    std::printf("%s",text);
+    return 0;
+}

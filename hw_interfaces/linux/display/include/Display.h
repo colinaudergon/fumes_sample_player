@@ -25,7 +25,7 @@ namespace hw_interface
         /// one row printed per line, '*' where a column's amplitude reaches that row and ' '
         /// otherwise (rows printed top-down, tallest/loudest samples reach the topmost rows).
         void ShowWave(float *buffer, size_t buffer_size);
-
+        int ShowText(const char* text) override;
     private:
         size_t display_height_;
         static constexpr char* kDefaultStyle = "\033[0m";

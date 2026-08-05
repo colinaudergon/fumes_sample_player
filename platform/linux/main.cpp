@@ -9,59 +9,33 @@
 
 #include <cstdio>
 #include <cstring>
-
+#include <chrono>
+#include <thread>
 #include "AudioPlayer.h"
 #include "FatFsFileSystemAdapter.h"
 #include "IBlockDevice.h"
 #include "NullAudioCodec.h"
 #include "PosixBlockDevice.h"
+#include "ConsoleInputHandler.h"
+#include "UserInterface.h"
+#include "Display.h"
 
-int ListDirectory(app::IFileSystem &file_system, const char* directory_path)
-{
-    if(directory_path == nullptr)
-    {
-        return -1;
-    }
 
-    // List every file (and directory) present at the root of the mounted volume.
-    app::FsDir *dir = nullptr;
-    app::FsResult open_dir_result = file_system.OpenDir(&dir, directory_path);
-    if (open_dir_result != app::FsResult::kOk)
-    {
-        std::printf("OpenDir result: %d\n", static_cast<int>(open_dir_result));
-        return -1;
-    }
-    
-    std::printf("Files on disk.img:\n");
-    for (;;)
-    {
-        app::FsFileInfo info;
-        app::FsResult read_dir_result = file_system.ReadDir(dir, &info);
-        if (read_dir_result != app::FsResult::kOk)
-        {
-            std::printf("ReadDir result: %d\n", static_cast<int>(read_dir_result));
-            break;
-        }
-    
-        // FatFs signals end-of-directory with FR_OK and an empty name.
-        if (info.name[0] == '\0')
-        {
-            break;
-        }
-    
-        const bool is_directory = (info.attributes & app::FsAttribute::kDirectory) != 0;
-        std::printf("  %s%s (%llu bytes)\n", info.name, is_directory ? "/" : "",
-                    static_cast<unsigned long long>(info.size));
-    }
 
-    file_system.CloseDir(dir);
-    return 0;
-}
+
+int ListDirectory(app::IFileSystem &file_system, const char* directory_path);
+
 
 
 static constexpr size_t kBufferSize = 4096;
 app::audio::AudioPlayer audio_player;
 hw_interface::NullAudioCodec audio_codec;
+
+hw_interface::ConsoleInputHandler console_input;
+hw_interface::Display display;
+app::ui::UserInterface ui(console_input, display);
+
+
 void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio_buffer_t *buffer_1)
 {
     // buffer_0 is always the buffer to be consumed for this callback ("current"); buffer_1 is
@@ -78,6 +52,10 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
 
 int main()
 {
+
+    // Puts stdin in non-blocking mode so ui.ProcessUi()'s polling loop below never stalls
+    // waiting on a line of console input.
+    console_input.Init();
 
     // Physical drive 0 (see app/FileSystem/include/IBlockDevice.h): a FAT volume backed by a
     // plain file on the host filesystem instead of a real SD/USB device.
@@ -131,7 +109,53 @@ int main()
 
     std::printf("wav_file_reader (native/Linux build) ready.\n");
     while(1)
-    {}
+    {
+        ui.ProcessUi();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     audio_codec.Stop();
+    return 0;
+}
+
+
+int ListDirectory(app::IFileSystem &file_system, const char* directory_path)
+{
+    if(directory_path == nullptr)
+    {
+        return -1;
+    }
+    
+    // List every file (and directory) present at the root of the mounted volume.
+    app::FsDir *dir = nullptr;
+    app::FsResult open_dir_result = file_system.OpenDir(&dir, directory_path);
+    if (open_dir_result != app::FsResult::kOk)
+    {
+        std::printf("OpenDir result: %d\n", static_cast<int>(open_dir_result));
+        return -1;
+    }
+    
+    std::printf("Files on disk.img:\n");
+    for (;;)
+    {
+        app::FsFileInfo info;
+        app::FsResult read_dir_result = file_system.ReadDir(dir, &info);
+        if (read_dir_result != app::FsResult::kOk)
+        {
+            std::printf("ReadDir result: %d\n", static_cast<int>(read_dir_result));
+            break;
+        }
+    
+        // FatFs signals end-of-directory with FR_OK and an empty name.
+        if (info.name[0] == '\0')
+        {
+            break;
+        }
+    
+        const bool is_directory = (info.attributes & app::FsAttribute::kDirectory) != 0;
+        std::printf("  %s%s (%llu bytes)\n", info.name, is_directory ? "/" : "",
+            static_cast<unsigned long long>(info.size));
+        }
+        
+    file_system.CloseDir(dir);
     return 0;
 }
