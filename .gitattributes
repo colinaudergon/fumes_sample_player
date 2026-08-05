@@ -1,0 +1,2 @@
+# Keep repository text files in LF so line endings do not cause staging failures.
+* text=auto eol=lf
