@@ -2,6 +2,7 @@
 #include "AudioPlayer.h"
 
 #include <algorithm>
+#include <cstring>
 
 int app::audio::AudioPlayer::Init(AudioPlayerConfiguration &configuration)
 {
@@ -58,7 +59,10 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
     // Keep the file open (positioned right after the header, at the start of the data chunk)
     // so Read() can stream sample data from it.
     file_ = file;
-    
+
+    std::strncpy(loaded_file_path_, path, kMaxFilePathLength - 1);
+    loaded_file_path_[kMaxFilePathLength - 1] = '\0';
+
     return 0;
 }
 
@@ -205,6 +209,26 @@ int app::audio::AudioPlayer::GetBitsPerSample()
 int app::audio::AudioPlayer::GetDataSize()
 {
     return wav_file_handler_.GetDataSize();
+}
+
+uint32_t app::audio::AudioPlayer::GetDurationMs()
+{
+    const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
+    const size_t channels = wav_file_handler_.GetNumChannels();
+    const int sample_rate = wav_file_handler_.GetSampleRate();
+    const size_t bytes_per_second = bytes_per_sample * channels * static_cast<size_t>(sample_rate);
+    if (bytes_per_second == 0)
+    {
+        return 0;
+    }
+
+    const uint64_t data_size = static_cast<uint64_t>(wav_file_handler_.GetDataSize());
+    return static_cast<uint32_t>((data_size * 1000) / bytes_per_second);
+}
+
+const char *app::audio::AudioPlayer::GetAudioFile()
+{
+    return loaded_file_path_;
 }
 
 bool app::audio::AudioPlayer::IsPlaying()

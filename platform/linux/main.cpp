@@ -79,17 +79,12 @@ int main()
         return -1;
     }
 
-    ListDirectory(file_system,"0:");
+    // ListDirectory(file_system,"0:");
 
     audio_player.Init(configuration);
     audio_player.LoadFile("0:/A0.WAV");
 
-    std::printf("A0.WAV attributes:\n");
-    std::printf("  Sample rate: %d Hz\n", audio_player.GetSampleRate());
-    std::printf("  Channels: %zu\n", audio_player.GetNumChannels());
-    std::printf("  Bits per sample: %d\n", audio_player.GetBitsPerSample());
-    std::printf("  Data size: %d bytes\n", audio_player.GetDataSize());
-
+    ui.DisplayFileInformation(audio_player.GetAudioFile(),audio_player.GetDurationMs());
     // Native/Linux playback device (see hw_interfaces/linux/audio_codec): backed by miniaudio
     // instead of the RP2040 I2S codec used by platform/rp2040/wav_file_reader.cpp.
 

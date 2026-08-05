@@ -45,6 +45,12 @@ namespace hw_interface
         CLI::App app_;
         CLI::App *up_command_ = nullptr;
         CLI::App *down_command_ = nullptr;
+        
+        CLI::App *play_command_ = nullptr;
+        CLI::App *stop_command_ = nullptr;
+        CLI::App *speed_command_ = nullptr;
+        CLI::App *freeze_command_ = nullptr;
+        float speed_value_ = 0.0f;
 
         // Owns any bytes read from stdin that don't yet form a complete line. Reading is done
         // manually via read() on an O_NONBLOCK stdin (set in Init()) instead of std::cin: mixing

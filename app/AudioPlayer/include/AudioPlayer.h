@@ -40,6 +40,15 @@ namespace app::audio
         int GetBitsPerSample();
         int GetDataSize();
 
+        /// @brief Returns the total playback duration of the currently loaded file, in
+        /// milliseconds, derived from its data size/sample rate/channels/bit depth. Returns 0
+        /// if no file has been loaded yet (or its header hasn't been parsed).
+        uint32_t GetDurationMs();
+
+        /// @brief Returns the path passed to the most recent successful LoadFile() call, or an
+        /// empty string if no file has been loaded yet.
+        const char *GetAudioFile();
+
         bool IsPlaying();
     private:
         void FillWithZeros(wav::audio_frame_t &output, size_t n_frames);
@@ -51,6 +60,11 @@ namespace app::audio
         IFileSystem &file_system_;
         wav::WavFileHandler wav_file_handler_;
         FsFile *file_{nullptr};
+
+        // Mirrors FsFileInfo::name's fixed-size buffer convention (see IFileSystem.h) to avoid
+        // any dynamic allocation for something this small/short-lived.
+        static constexpr size_t kMaxFilePathLength = 256;
+        char loaded_file_path_[kMaxFilePathLength] = {};
 
         static constexpr size_t kWavHeaderSize = 44;
 

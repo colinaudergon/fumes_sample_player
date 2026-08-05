@@ -26,6 +26,7 @@ namespace hw_interface
         /// otherwise (rows printed top-down, tallest/loudest samples reach the topmost rows).
         void ShowWave(float *buffer, size_t buffer_size);
         int ShowText(const char* text) override;
+        int DisplayFileInfo(const char* file_name, uint32_t duration_ms) override;
     private:
         size_t display_height_;
         static constexpr char* kDefaultStyle = "\033[0m";

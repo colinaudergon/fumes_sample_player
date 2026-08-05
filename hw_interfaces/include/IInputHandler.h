@@ -2,7 +2,6 @@
 #include <cstdint>
 namespace hw_interface
 {
-    typedef uint8_t parameter_id_t;
 
     enum class InputEventType
     {
@@ -10,6 +9,13 @@ namespace hw_interface
         kParameterChangeEvent,
         kSelectEvent
     };
+    enum class ParameterChangeId
+    {
+        kPlaybackSpeedParameterId,
+        kPlayParameterId,
+        kStopParameterId
+    };
+
     enum class NavigationDirection
     {
         kUp,
@@ -18,18 +24,18 @@ namespace hw_interface
 
     struct ParameterChange
     {
-        parameter_id_t id;
+        ParameterChangeId id;
         float delta;
     };
 
     struct InputEvent
     {
         InputEventType type;
-        union 
-        {  
+        union
+        {
             NavigationDirection navigationDirection;
             ParameterChange parameter;
-        };        
+        };
     };
 
     class IInputHandler

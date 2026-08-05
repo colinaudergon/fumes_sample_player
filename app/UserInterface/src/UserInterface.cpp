@@ -5,6 +5,7 @@ void app::ui::UserInterface::ProcessUi()
     hw_interface::InputEvent event;
     if (input_handler_.PollEvent(event))
     {
+
         if (event.type == hw_interface::InputEventType::kNavigationEvent)
         {
             if (event.navigationDirection == hw_interface::NavigationDirection::kUp)
@@ -16,5 +17,30 @@ void app::ui::UserInterface::ProcessUi()
                 display_.ShowText("Down cmd\n");
             }
         }
+        else if (event.type == hw_interface::InputEventType::kParameterChangeEvent)
+        {
+            if (event.parameter.id == hw_interface::ParameterChangeId::kPlaybackSpeedParameterId)
+            {
+                display_.ShowText("Play back speed\n");
+            }
+            if (event.parameter.id == hw_interface::ParameterChangeId::kPlayParameterId)
+            {
+                display_.ShowText("Play\n");
+            }
+            if (event.parameter.id == hw_interface::ParameterChangeId::kStopParameterId)
+            {
+                display_.ShowText("Stop\n");
+            }
+        }
     }
+}
+
+void app::ui::UserInterface::DisplayFileInformation(const char *filename, uint32_t duration_ms)
+{
+        if(filename == nullptr)
+    {
+        display_.ShowText("file: unknown\n");
+        return;
+    }
+    display_.DisplayFileInfo(filename,duration_ms);
 }

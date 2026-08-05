@@ -7,10 +7,17 @@
 #include <iostream>
 #include <sstream>
 
+
 hw_interface::ConsoleInputHandler::ConsoleInputHandler()
 {
     up_command_ = app_.add_subcommand("up", "Navigate up");
     down_command_ = app_.add_subcommand("down", "Navigate down");
+
+    play_command_ = app_.add_subcommand("play", "Start playing");
+    stop_command_ = app_.add_subcommand("stop", "Stop playing");
+    speed_command_ = app_.add_subcommand("speed", "change playback speed");
+    speed_command_->add_option("value", speed_value_, "Playback speed delta")->required()->check(CLI::Range(-1.0, 1.0));
+    freeze_command_ = app_.add_subcommand("freeze", "Freeze the output buffer to its current value, no more data is fetched");
 }
 
 int hw_interface::ConsoleInputHandler::Init()
@@ -87,6 +94,27 @@ bool hw_interface::ConsoleInputHandler::ParseLine(const std::string &line, Input
     {
         out.type = InputEventType::kNavigationEvent;
         out.navigationDirection = NavigationDirection::kDown;
+        return true;
+    }
+    if (play_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kPlayParameterId;
+        out.parameter.delta = 1.0;
+        return true;
+    }
+    if (stop_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kStopParameterId;
+        out.parameter.delta = 0;
+        return true;
+    }
+    if (speed_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kPlaybackSpeedParameterId;
+        out.parameter.delta = speed_value_;
         return true;
     }
     return false;

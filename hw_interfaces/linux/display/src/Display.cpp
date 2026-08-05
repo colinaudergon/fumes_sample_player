@@ -54,3 +54,15 @@ int hw_interface::Display::ShowText(const char *text)
     std::printf("%s",text);
     return 0;
 }
+
+int hw_interface::Display::DisplayFileInfo(const char *file_name, uint32_t duration_ms)
+{
+    if(file_name == nullptr)
+    {
+        return -1;
+    }
+    std::printf("Filename: %s\n",file_name);
+    std::printf("Duration: %d\n",duration_ms);
+
+    return 0;
+}
