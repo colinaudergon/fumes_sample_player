@@ -1,0 +1,6 @@
+[submodule "third_party/ca_style_guide"]
+	path = third_party/ca_style_guide
+	url = https://github.com/colinaudergon/ca_style_guide.git
+[submodule "lib/pico_audio_i2s_32b"]
+	path = lib/pico_audio_i2s_32b
+	url = https://github.com/elehobica/pico_audio_i2s_32b.git

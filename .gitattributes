@@ -1,2 +1,2 @@
-# Keep repository text files in LF so line endings do not cause staging failures.
-* text=auto eol=lf
+# Do not normalize line endings; accept files as-is (CRLF or LF).
+* -text
