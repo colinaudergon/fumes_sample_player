@@ -81,6 +81,13 @@ bool hw_interface::ConsoleInputHandler::ParseLine(const std::string &line, Input
         // CLI11 expects arguments in reverse order (it pops from the back).
         app_.parse(std::vector<std::string>(tokens.rbegin(), tokens.rend()));
     }
+    catch (const CLI::CallForHelp &)
+    {
+        // Print help ourselves instead of letting CLI11's default handling call
+        // app_.exit(e), which would std::exit() the whole process.
+        std::cout << app_.help() << std::endl;
+        return false;
+    }
     catch (const CLI::ParseError &)
     {
         return false; // unrecognized command: ignore and keep polling.
