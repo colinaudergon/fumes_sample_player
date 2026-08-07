@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "wav_format.h"
+#include "../../../include/AudioTypes.h"
 
 namespace app::audio::wav
 {
@@ -18,12 +19,7 @@ namespace app::audio::wav
         kCompressed
     };
 
-    typedef struct
-    {
-        float *audio_l;
-        float *audio_r;
-        size_t n_frames;
-    } audio_frame_t;
+    using app::audio::audio_frame_t;
 
     class WavFileHandler
     {

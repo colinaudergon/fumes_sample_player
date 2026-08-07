@@ -12,6 +12,7 @@
 #include <chrono>
 #include <thread>
 #include "AudioPlayer.h"
+#include "EffectController.h"
 #include "FileManager.h"
 #include "FatFsFileSystemAdapter.h"
 #include "IBlockDevice.h"
@@ -21,6 +22,8 @@
 #include "UserInterface.h"
 #include "Display.h"
 
+
+
 static constexpr size_t kBufferSize = 4096;
 app::filesystem::FileManager file_manager;
 app::audio::AudioPlayer audio_player;
@@ -29,6 +32,7 @@ hw_interface::NullAudioCodec audio_codec;
 hw_interface::ConsoleInputHandler console_input;
 hw_interface::Display display;
 app::ui::UserInterface ui(console_input, display);
+app::audio::EffectController effect_controller;
 
 void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio_buffer_t *buffer_1)
 {
@@ -42,6 +46,7 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
     // audio_buffer_t's fields but belongs to the app layer.
     app::audio::wav::audio_frame_t frame{current.buffer_left, current.buffer_right, current.buffer_len};
     audio_player.Read(frame, current.buffer_len);
+    effect_controller.Process(frame,frame,current.buffer_len);
 }
 
 int main()
