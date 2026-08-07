@@ -83,7 +83,7 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         return -1;
     }
 
-    if(!is_playing_)
+    if (!is_playing_)
     {
         return 1;
     }
@@ -164,6 +164,19 @@ void app::audio::AudioPlayer::FillWithZeros(wav::audio_frame_t &output, size_t n
     output.n_frames = n_frames;
 }
 
+int app::audio::AudioPlayer::CountNumberOfFileInBank()
+{
+    // app::FsDir *dir = nullptr;
+    // app::FsResult open_dir_result = file_system_.OpenDir(&dir, directory_path);
+    // if (open_dir_result != app::FsResult::kOk)
+    // {
+    //     return -1;
+    // }
+
+
+    return 0;
+}
+
 int app::audio::AudioPlayer::Start()
 {
     is_playing_ = true;
@@ -233,7 +246,7 @@ const char *app::audio::AudioPlayer::GetAudioFile()
 
 bool app::audio::AudioPlayer::IsPlaying()
 {
-    return is_playing_ ;
+    return is_playing_;
 }
 
 app::audio::AudioPlayer::~AudioPlayer()

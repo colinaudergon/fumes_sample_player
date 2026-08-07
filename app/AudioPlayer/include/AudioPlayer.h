@@ -52,7 +52,6 @@ namespace app::audio
         bool IsPlaying();
     private:
         void FillWithZeros(wav::audio_frame_t &output, size_t n_frames);
-
         bool is_playing_{false};
         bool is_looping_{false};
         float playback_speed_{0.0f};

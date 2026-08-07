@@ -12,6 +12,7 @@
 #include <chrono>
 #include <thread>
 #include "AudioPlayer.h"
+#include "FileManager.h"
 #include "FatFsFileSystemAdapter.h"
 #include "IBlockDevice.h"
 #include "NullAudioCodec.h"
@@ -20,21 +21,14 @@
 #include "UserInterface.h"
 #include "Display.h"
 
-
-
-
-int ListDirectory(app::IFileSystem &file_system, const char* directory_path);
-
-
-
 static constexpr size_t kBufferSize = 4096;
+app::filesystem::FileManager file_manager;
 app::audio::AudioPlayer audio_player;
 hw_interface::NullAudioCodec audio_codec;
 
 hw_interface::ConsoleInputHandler console_input;
 hw_interface::Display display;
 app::ui::UserInterface ui(console_input, display);
-
 
 void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio_buffer_t *buffer_1)
 {
@@ -72,19 +66,34 @@ int main()
         .playback_speed = 1.0f,
         .n_channels = 2};
 
-    app::FsResult mount_result = file_system.Mount("0:");
+    const char *disk_path = "0:";
+    app::FsResult mount_result = file_system.Mount(disk_path);
     if (mount_result != app::FsResult::kOk)
     {
         std::printf("Mount result: %d\n", static_cast<int>(mount_result));
         return -1;
     }
 
-    // ListDirectory(file_system,"0:");
+    if (file_manager.Init(disk_path, static_cast<uint8_t>(app::filesystem::SupportedFileExtensions::KWav)) < 0)
+    {
+        std::printf("Failed to initialize file system manager\n");
+        return -1;
+    }
 
-    audio_player.Init(configuration);
-    audio_player.LoadFile("0:/A0.WAV");
+    size_t number_of_banks = file_manager.GetNumberOfBanks();
+    std::printf("Number of banks: %ld\n", number_of_banks);
+    if(file_manager.SelectBank(0) <0)
+    {
+        std::printf("Failed to select bank\n");
+        return -1;
+    }
 
-    ui.DisplayFileInformation(audio_player.GetAudioFile(),audio_player.GetDurationMs());
+    std::printf("Number of files in current bank: %ld\n", file_manager.GetNumberOfFileInCurrentBank());
+
+    // audio_player.Init(configuration);
+    // audio_player.LoadFile("0:/A0.WAV");
+
+    ui.DisplayFileInformation(audio_player.GetAudioFile(), audio_player.GetDurationMs());
     // Native/Linux playback device (see hw_interfaces/linux/audio_codec): backed by miniaudio
     // instead of the RP2040 I2S codec used by platform/rp2040/wav_file_reader.cpp.
 
@@ -103,7 +112,7 @@ int main()
     }
 
     std::printf("wav_file_reader (native/Linux build) ready.\n");
-    while(1)
+    while (1)
     {
         ui.ProcessUi();
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -112,14 +121,13 @@ int main()
     return 0;
 }
 
-
-int ListDirectory(app::IFileSystem &file_system, const char* directory_path)
+int ListDirectory(app::IFileSystem &file_system, const char *directory_path)
 {
-    if(directory_path == nullptr)
+    if (directory_path == nullptr)
     {
         return -1;
     }
-    
+
     // List every file (and directory) present at the root of the mounted volume.
     app::FsDir *dir = nullptr;
     app::FsResult open_dir_result = file_system.OpenDir(&dir, directory_path);
@@ -128,7 +136,7 @@ int ListDirectory(app::IFileSystem &file_system, const char* directory_path)
         std::printf("OpenDir result: %d\n", static_cast<int>(open_dir_result));
         return -1;
     }
-    
+
     std::printf("Files on disk.img:\n");
     for (;;)
     {
@@ -139,18 +147,18 @@ int ListDirectory(app::IFileSystem &file_system, const char* directory_path)
             std::printf("ReadDir result: %d\n", static_cast<int>(read_dir_result));
             break;
         }
-    
+
         // FatFs signals end-of-directory with FR_OK and an empty name.
         if (info.name[0] == '\0')
         {
             break;
         }
-    
+
         const bool is_directory = (info.attributes & app::FsAttribute::kDirectory) != 0;
         std::printf("  %s%s (%llu bytes)\n", info.name, is_directory ? "/" : "",
-            static_cast<unsigned long long>(info.size));
-        }
-        
+                    static_cast<unsigned long long>(info.size));
+    }
+
     file_system.CloseDir(dir);
     return 0;
 }
