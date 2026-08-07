@@ -32,6 +32,10 @@ void app::ui::UserInterface::ProcessUi()
                 display_.ShowText("Stop\n");
             }
         }
+
+        // Queue the raw event so the main loop can act on it (e.g. drive AudioPlayer/
+        // FileManager) without UserInterface needing to know about those app-layer types.
+        PushCommand(event);
     }
 }
 
@@ -44,3 +48,33 @@ void app::ui::UserInterface::DisplayFileInformation(const char *filename, uint32
     }
     display_.DisplayFileInfo(filename,duration_ms);
 }
+
+bool app::ui::UserInterface::PushCommand(const hw_interface::InputEvent &command)
+{
+    if (queue_count_ >= kCommandQueueCapacity)
+    {
+        // Queue full: drop the incoming command rather than overwrite an older, unprocessed one.
+        return false;
+    }
+
+    command_queue_[queue_tail_] = command;
+    queue_tail_ = (queue_tail_ + 1) % kCommandQueueCapacity;
+    queue_count_++;
+
+    return true;
+}
+
+bool app::ui::UserInterface::PopCommand(hw_interface::InputEvent &command)
+{
+    if (queue_count_ == 0)
+    {
+        return false;
+    }
+
+    command = command_queue_[queue_head_];
+    queue_head_ = (queue_head_ + 1) % kCommandQueueCapacity;
+    queue_count_--;
+
+    return true;
+}
+

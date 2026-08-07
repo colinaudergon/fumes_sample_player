@@ -88,12 +88,8 @@ int main()
         return -1;
     }
 
-    std::printf("Number of files in current bank: %ld\n", file_manager.GetNumberOfFileInCurrentBank());
+    audio_player.Init(configuration);
 
-    // audio_player.Init(configuration);
-    // audio_player.LoadFile("0:/A0.WAV");
-
-    ui.DisplayFileInformation(audio_player.GetAudioFile(), audio_player.GetDurationMs());
     // Native/Linux playback device (see hw_interfaces/linux/audio_codec): backed by miniaudio
     // instead of the RP2040 I2S codec used by platform/rp2040/wav_file_reader.cpp.
 
@@ -103,6 +99,7 @@ int main()
         std::printf("Audio codec Init result: %d\n", codec_init_result);
         return -1;
     }
+    
     audio_codec.RegisterFillCallback(buffer_callback);
     int codec_start_result = audio_codec.Start();
     if (codec_start_result != 0)
@@ -112,53 +109,63 @@ int main()
     }
 
     std::printf("wav_file_reader (native/Linux build) ready.\n");
+    
     while (1)
     {
         ui.ProcessUi();
+
+        hw_interface::InputEvent command;
+        while (ui.PopCommand(command))
+        {
+            if (command.type == hw_interface::InputEventType::kParameterChangeEvent)
+            {
+                if (command.parameter.id == hw_interface::ParameterChangeId::kPlayParameterId)
+                {
+                    const char* file_path = file_manager.GetSelectedFilePath();
+                    if(file_path[0] != '\0')
+                    {
+                        audio_player.LoadFile(file_path);
+                        ui.DisplayFileInformation(audio_player.GetAudioFile(), audio_player.GetDurationMs());
+                        audio_player.Start();
+                    }
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kStopParameterId)
+                {
+                    audio_player.Stop();
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kPlaybackSpeedParameterId)
+                {
+                    // command.parameter.delta is a relative adjustment (see ConsoleInputHandler's
+                    // "speed" subcommand help text: "Playback speed delta"), not an absolute
+                    // speed, so it's added to the current speed rather than replacing it.
+                    audio_player.SetPlaybackSpeed(audio_player.GetPlaybackSpeed() + command.parameter.delta);
+                    std::printf("Playback speed: %.2f\n", audio_player.GetPlaybackSpeed());
+                }
+                else if(command.parameter.id == hw_interface::ParameterChangeId::kFreezeParameterdId)
+                {   
+                    bool freeze_enable = command.parameter.delta == 1.0;
+                    audio_player.Freeze(freeze_enable);
+                    std::printf("Freeze request: %.2f\n",command.parameter.delta);
+                }
+            }
+            else if (command.type == hw_interface::InputEventType::kNavigationEvent)
+            {
+                int ret = 0;
+                if (command.navigationDirection == hw_interface::NavigationDirection::kUp)
+                {
+                    ret = file_manager.SelectNextFile();
+                    std::printf("Result: %d\n",ret);
+                }
+                else if (command.navigationDirection == hw_interface::NavigationDirection::kDown)
+                {
+                    ret = file_manager.SelectPreviousFile();
+                    std::printf("Result: %d\n",ret);
+                }
+            }
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     audio_codec.Stop();
-    return 0;
-}
-
-int ListDirectory(app::IFileSystem &file_system, const char *directory_path)
-{
-    if (directory_path == nullptr)
-    {
-        return -1;
-    }
-
-    // List every file (and directory) present at the root of the mounted volume.
-    app::FsDir *dir = nullptr;
-    app::FsResult open_dir_result = file_system.OpenDir(&dir, directory_path);
-    if (open_dir_result != app::FsResult::kOk)
-    {
-        std::printf("OpenDir result: %d\n", static_cast<int>(open_dir_result));
-        return -1;
-    }
-
-    std::printf("Files on disk.img:\n");
-    for (;;)
-    {
-        app::FsFileInfo info;
-        app::FsResult read_dir_result = file_system.ReadDir(dir, &info);
-        if (read_dir_result != app::FsResult::kOk)
-        {
-            std::printf("ReadDir result: %d\n", static_cast<int>(read_dir_result));
-            break;
-        }
-
-        // FatFs signals end-of-directory with FR_OK and an empty name.
-        if (info.name[0] == '\0')
-        {
-            break;
-        }
-
-        const bool is_directory = (info.attributes & app::FsAttribute::kDirectory) != 0;
-        std::printf("  %s%s (%llu bytes)\n", info.name, is_directory ? "/" : "",
-                    static_cast<unsigned long long>(info.size));
-    }
-
-    file_system.CloseDir(dir);
     return 0;
 }

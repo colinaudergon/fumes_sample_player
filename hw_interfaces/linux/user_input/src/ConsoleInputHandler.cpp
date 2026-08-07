@@ -7,7 +7,6 @@
 #include <iostream>
 #include <sstream>
 
-
 hw_interface::ConsoleInputHandler::ConsoleInputHandler()
 {
     up_command_ = app_.add_subcommand("up", "Navigate up");
@@ -18,6 +17,7 @@ hw_interface::ConsoleInputHandler::ConsoleInputHandler()
     speed_command_ = app_.add_subcommand("speed", "change playback speed");
     speed_command_->add_option("value", speed_value_, "Playback speed delta")->required()->check(CLI::Range(-1.0, 1.0));
     freeze_command_ = app_.add_subcommand("freeze", "Freeze the output buffer to its current value, no more data is fetched");
+    freeze_command_->add_option("value", freeze_value_, "freeze enable")->required()->check(CLI::Range(0, 1));
 }
 
 int hw_interface::ConsoleInputHandler::Init()
@@ -115,6 +115,13 @@ bool hw_interface::ConsoleInputHandler::ParseLine(const std::string &line, Input
         out.type = InputEventType::kParameterChangeEvent;
         out.parameter.id = ParameterChangeId::kPlaybackSpeedParameterId;
         out.parameter.delta = speed_value_;
+        return true;
+    }
+    if (freeze_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kFreezeParameterdId;
+        out.parameter.delta = freeze_value_;
         return true;
     }
     return false;

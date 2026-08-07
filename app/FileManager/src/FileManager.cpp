@@ -63,6 +63,10 @@ int app::filesystem::FileManager::SelectBank(size_t bank_number)
     number_of_loaded_files_ = number_of_file_in_bank;
     std::printf("Bank path%s\n", current_bank_path_);
     current_bank_ = bank_number;
+    if (current_file_ > number_of_loaded_files_)
+    {
+        current_file_ = number_of_loaded_files_;
+    }
     return kFileManagerOk;
 }
 
@@ -81,6 +85,102 @@ int app::filesystem::FileManager::SelectFileByIndex(size_t file_index)
     current_file_ = file_index;
 
     return 0;
+}
+
+int app::filesystem::FileManager::SelectNextFile()
+{
+    current_file_++;
+    if (current_file_ > number_of_loaded_files_)
+    {
+        current_file_ = 0;
+    }
+
+    return SelectFileByIndex(current_file_);
+}
+
+int app::filesystem::FileManager::SelectPreviousFile()
+{
+    current_file_--;
+    if (current_file_ > number_of_loaded_files_)
+    {
+        current_file_ = number_of_loaded_files_ - 1;
+    }
+
+    return SelectFileByIndex(current_file_);
+}
+
+const char *app::filesystem::FileManager::GetSelectedFilePath()
+{
+    selected_file_path_[0] = '\0';
+
+    if (current_file_ >= number_of_loaded_files_)
+    {
+        return selected_file_path_;
+    }
+
+    app::FsDir *dir = nullptr;
+    app::FsResult open_dir_result = file_system_.OpenDir(&dir, current_bank_path_);
+    if (open_dir_result != app::FsResult::kOk)
+    {
+        return selected_file_path_;
+    }
+
+    char matched_name[kFileNameMaxLength + 1] = {};
+    bool found = false;
+    size_t valid_file_index = 0;
+
+    for (;;)
+    {
+        app::FsFileInfo info;
+        app::FsResult read_dir_result = file_system_.ReadDir(dir, &info);
+
+        if (read_dir_result != app::FsResult::kOk)
+        {
+            break;
+        }
+
+        // FatFs signals end-of-directory with FR_OK and an empty name.
+        if (info.name[0] == '\0')
+        {
+            break;
+        }
+
+        if ((info.attributes & app::FsAttribute::kDirectory) == 0)
+        {
+            size_t name_length = strnlen(info.name, sizeof(info.name));
+            if (ValidateFileName(info.name, name_length) == kFileManagerOk)
+            {
+                if (valid_file_index == current_file_)
+                {
+                    size_t copy_length = (name_length < kFileNameMaxLength) ? name_length : kFileNameMaxLength;
+                    memcpy(matched_name, info.name, copy_length);
+                    matched_name[copy_length] = '\0';
+                    found = true;
+                    break;
+                }
+
+                valid_file_index++;
+            }
+        }
+    }
+
+    file_system_.CloseDir(dir);
+
+    if (!found)
+    {
+        return selected_file_path_;
+    }
+
+    // SelectBank() only ever leaves a fully null-terminated string in current_bank_path_ (it
+    // bails out before storing anything that didn't fit), so "%s" is safe here.
+    int written = snprintf(selected_file_path_, kFullFilePathMaxLen, "%s/%s", current_bank_path_, matched_name);
+
+    if (written < 0 || static_cast<size_t>(written) >= kFullFilePathMaxLen)
+    {
+        selected_file_path_[0] = '\0';
+    }
+
+    return selected_file_path_;
 }
 
 int app::filesystem::FileManager::CountBanksOnDisk()

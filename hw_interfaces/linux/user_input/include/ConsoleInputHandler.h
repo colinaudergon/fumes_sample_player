@@ -51,6 +51,7 @@ namespace hw_interface
         CLI::App *speed_command_ = nullptr;
         CLI::App *freeze_command_ = nullptr;
         float speed_value_ = 0.0f;
+        float freeze_value_ = 0.0f;
 
         // Owns any bytes read from stdin that don't yet form a complete line. Reading is done
         // manually via read() on an O_NONBLOCK stdin (set in Init()) instead of std::cin: mixing

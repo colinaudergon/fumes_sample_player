@@ -24,7 +24,11 @@ namespace app::filesystem
         int SelectBank(size_t bank_number);
         size_t GetNumberOfFileInCurrentBank();
         int SelectFileByIndex(size_t file_index);
-        
+        int SelectNextFile();
+        int SelectPreviousFile();
+        /// @brief Returns the full path (bank path + filename) of the currently selected file.
+        /// @return The full file path, or an empty string if no file is currently selected/valid.
+        const char *GetSelectedFilePath();
     private:
         app::IFileSystem &file_system_;
         static constexpr size_t kNumMaxBank = 64;
@@ -42,6 +46,12 @@ namespace app::filesystem
 
         size_t number_of_loaded_files_{0};
         size_t current_file_{0};
+
+        // Bank path + '/' + filename + null terminator, matching AudioPlayer::kMaxFilePathLength
+        // (see app/AudioPlayer/include/AudioPlayer.h) so GetSelectedFilePath()'s output can be
+        // handed straight to AudioPlayer::LoadFile() without further length checks.
+        static constexpr size_t kFullFilePathMaxLen = 256;
+        char selected_file_path_[kFullFilePathMaxLen] = {};
         
         int CountBanksOnDisk();
         /// @brief Validates that the folder name is a valid bank name
