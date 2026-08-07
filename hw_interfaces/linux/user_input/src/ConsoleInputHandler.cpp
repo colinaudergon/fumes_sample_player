@@ -18,6 +18,8 @@ hw_interface::ConsoleInputHandler::ConsoleInputHandler()
     speed_command_->add_option("value", speed_value_, "Playback speed delta")->required()->check(CLI::Range(-1.0, 1.0));
     freeze_command_ = app_.add_subcommand("freeze", "Freeze the output buffer to its current value, no more data is fetched");
     freeze_command_->add_option("value", freeze_value_, "freeze enable")->required()->check(CLI::Range(0, 1));
+    reverse_command_ = app_.add_subcommand("reverse", "Change play direction");
+    reverse_command_->add_option("value", reverse_value_, "reverse enable")->required()->check(CLI::Range(0, 1));
 }
 
 int hw_interface::ConsoleInputHandler::Init()
@@ -122,6 +124,14 @@ bool hw_interface::ConsoleInputHandler::ParseLine(const std::string &line, Input
         out.type = InputEventType::kParameterChangeEvent;
         out.parameter.id = ParameterChangeId::kFreezeParameterdId;
         out.parameter.delta = freeze_value_;
+        return true;
+    }
+
+    if (reverse_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kReverseParameterId;
+        out.parameter.delta = reverse_value_;
         return true;
     }
     return false;

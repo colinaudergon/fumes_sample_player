@@ -33,7 +33,7 @@ namespace app::audio
         /// currently playing/loaded.
         /// @param n_frames Requested output frame count; must not exceed kMaxOutputFrames.
         int Read(wav::audio_frame_t &output, size_t n_frames);
-
+        void SetReverse(bool enable);
         int Start();
         int Stop();
         int SetLooping(bool looping);
@@ -57,6 +57,7 @@ namespace app::audio
         const char *GetAudioFile();
 
         bool IsPlaying();
+
     private:
         void FillWithZeros(wav::audio_frame_t &output, size_t n_frames);
         /// @brief Resamples `input` (whose valid length is `input.n_frames`) into `output`,
@@ -65,7 +66,7 @@ namespace app::audio
         /// @param input Source buffer; input.n_frames is the number of valid source frames.
         /// @param output Destination buffer, filled with exactly `n_frames` frames.
         /// @param n_frames The desired number of OUTPUT frames (already computed by the caller).
-        void AdjustTime(wav::audio_frame_t &input,wav::audio_frame_t &output,size_t n_frames);
+        void AdjustTime(wav::audio_frame_t &input, wav::audio_frame_t &output, size_t n_frames);
         /// @brief Linearly interpolates the sample at fractional index `single_value` within
         /// `input`, using `n_frames` as the bounds of that buffer. Takes a raw channel pointer
         /// (rather than a full audio_frame_t) so it can be reused for either channel.
@@ -75,6 +76,8 @@ namespace app::audio
         /// @param n_frames Number of valid frames in `input`.
         /// @return The interpolated sample value, or 0.0f if `input` is null or `n_frames` is 0.
         float ApplyInterpolation(float *input, float single_value, size_t n_frames);
+        void ReverseFrames(wav::audio_frame_t &input, size_t n_frames);
+        bool is_reverse_{false};
         bool is_playing_{false};
         bool is_looping_{false};
         bool is_freezed_{false};
@@ -95,7 +98,7 @@ namespace app::audio
         char loaded_file_path_[kMaxFilePathLength] = {};
 
         static constexpr size_t kWavHeaderSize = 44;
-
+        size_t current_frame_index_{0};
         // Bounded scratch buffer used to stream+convert raw file bytes into Read()'s output in
         // chunks, avoiding both unbounded stack/heap use and any extra copy: WavFileHandler::
         // ReadData() converts straight from this buffer into the caller's output arrays.

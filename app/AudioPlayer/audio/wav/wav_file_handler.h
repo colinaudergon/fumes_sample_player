@@ -39,7 +39,7 @@ namespace app::audio::wav
         size_t GetNumChannels();
         int GetBitsPerSample();
         AudioFormat GetFormat();
-
+static constexpr size_t kWavHeaderSize = 44;
     private:
         wav_file_header_t header_;
 
@@ -55,7 +55,7 @@ namespace app::audio::wav
         static constexpr size_t kTwentyfourBits = 24;
         static constexpr size_t kThirtytwoBits = 32;
 
-        static constexpr size_t kWavHeaderSize = 44;
+        
         static constexpr int kWavFileHandlerSuccess = 0;
         static constexpr int kWavFileHandlerErr = -1;
         static constexpr int kWavFileHandlerBufferInvalid = -2;

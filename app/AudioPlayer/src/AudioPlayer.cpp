@@ -64,6 +64,21 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
     std::strncpy(loaded_file_path_, path, kMaxFilePathLength - 1);
     loaded_file_path_[kMaxFilePathLength - 1] = '\0';
 
+    // Position the read cursor for whichever direction is currently selected: forward playback
+    // starts at frame 0, reverse playback starts at one-past-the-last frame (see Read()'s
+    // is_reverse_ branch, which consumes frames *before* current_frame_index_). Without this,
+    // loading a file while is_reverse_ is already true would leave current_frame_index_ at 0 and
+    // Read() would immediately clamp frames_remaining to 0, producing silence forever.
+    if (is_reverse_)
+    {
+        const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
+        const size_t frame_bytes = bytes_per_sample * wav_file_handler_.GetNumChannels();
+        current_frame_index_ = (frame_bytes != 0) ? static_cast<size_t>(wav_file_handler_.GetDataSize()) / frame_bytes : 0;
+    }
+    else
+    {
+        current_frame_index_ = 0;
+    }
     return 0;
 }
 
@@ -116,6 +131,21 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
     size_t frames_remaining = n_frames_out;
     size_t total_frames_read = 0;
 
+    if (is_reverse_)
+    {
+        // current_frame_index_ is the frame *after* the last one already played; the next chunk
+        // to read is the frames_remaining frames immediately before it. Clamp frames_remaining
+        // (and thus n_frames_out, kept in sync so later logic that reads it stays consistent) to
+        // current_frame_index_ so start_frame below never underflows when fewer than
+        // n_frames_out frames remain before frame 0.
+        frames_remaining = std::min(frames_remaining, current_frame_index_);
+        n_frames_out = frames_remaining;
+
+        size_t start_frame = current_frame_index_ - frames_remaining;
+        size_t offset = kWavHeaderSize + start_frame * frame_bytes;
+        file_system_.Lseek(file_, offset);
+    }
+
     while (frames_remaining > 0)
     {
         const size_t chunk_frames = std::min(frames_remaining, kMaxReadFrames);
@@ -166,7 +196,37 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
     wav::audio_frame_t source_frame{time_adjust_source_l_, time_adjust_source_r_, total_frames_read};
     AdjustTime(source_frame, output, n_frames);
 
+    if (is_reverse_)
+    {
+        ReverseFrames(output, n_frames);
+        current_frame_index_ -= total_frames_read;
+    }
+    else
+    {
+        current_frame_index_ += total_frames_read; // forward
+    }
+
     return static_cast<int>(output.n_frames);
+}
+
+void app::audio::AudioPlayer::SetReverse(bool enable)
+{
+    if (enable && !is_reverse_ && current_frame_index_ == 0)
+    {
+        // Reverse playback consumes frames *before* current_frame_index_ (see Read()'s
+        // is_reverse_ branch), so starting it from index 0 (e.g. right after LoadFile(), before
+        // any forward playback has advanced the cursor) would leave nothing to read and Read()
+        // would output silence forever. Seed the cursor to one-past-the-last frame so reverse
+        // playback starts from the end of the file, like forward playback starts from frame 0.
+        const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
+        const size_t frame_bytes = bytes_per_sample * wav_file_handler_.GetNumChannels();
+        if (frame_bytes != 0)
+        {
+            current_frame_index_ = static_cast<size_t>(wav_file_handler_.GetDataSize()) / frame_bytes;
+        }
+    }
+
+    is_reverse_ = enable;
 }
 
 void app::audio::AudioPlayer::FillWithZeros(wav::audio_frame_t &output, size_t n_frames)
@@ -243,6 +303,15 @@ float app::audio::AudioPlayer::ApplyInterpolation(float *input, float single_val
     }
 
     return input[sample] + fraction * (input[next_sample] - input[sample]);
+}
+
+void app::audio::AudioPlayer::ReverseFrames(wav::audio_frame_t &input, size_t n_frames)
+{
+    for (size_t i = 0, j = n_frames - 1; i < j; ++i, --j)
+    {
+        std::swap(input.audio_l[i], input.audio_l[j]);
+        std::swap(input.audio_r[i], input.audio_r[j]);
+    }
 }
 
 int app::audio::AudioPlayer::Start()

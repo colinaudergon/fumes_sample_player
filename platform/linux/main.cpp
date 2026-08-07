@@ -82,7 +82,7 @@ int main()
 
     size_t number_of_banks = file_manager.GetNumberOfBanks();
     std::printf("Number of banks: %ld\n", number_of_banks);
-    if(file_manager.SelectBank(0) <0)
+    if (file_manager.SelectBank(0) < 0)
     {
         std::printf("Failed to select bank\n");
         return -1;
@@ -99,7 +99,7 @@ int main()
         std::printf("Audio codec Init result: %d\n", codec_init_result);
         return -1;
     }
-    
+
     audio_codec.RegisterFillCallback(buffer_callback);
     int codec_start_result = audio_codec.Start();
     if (codec_start_result != 0)
@@ -109,7 +109,7 @@ int main()
     }
 
     std::printf("wav_file_reader (native/Linux build) ready.\n");
-    
+
     while (1)
     {
         ui.ProcessUi();
@@ -121,8 +121,8 @@ int main()
             {
                 if (command.parameter.id == hw_interface::ParameterChangeId::kPlayParameterId)
                 {
-                    const char* file_path = file_manager.GetSelectedFilePath();
-                    if(file_path[0] != '\0')
+                    const char *file_path = file_manager.GetSelectedFilePath();
+                    if (file_path[0] != '\0')
                     {
                         audio_player.LoadFile(file_path);
                         ui.DisplayFileInformation(audio_player.GetAudioFile(), audio_player.GetDurationMs());
@@ -141,11 +141,17 @@ int main()
                     audio_player.SetPlaybackSpeed(audio_player.GetPlaybackSpeed() + command.parameter.delta);
                     std::printf("Playback speed: %.2f\n", audio_player.GetPlaybackSpeed());
                 }
-                else if(command.parameter.id == hw_interface::ParameterChangeId::kFreezeParameterdId)
-                {   
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kFreezeParameterdId)
+                {
                     bool freeze_enable = command.parameter.delta == 1.0;
                     audio_player.Freeze(freeze_enable);
-                    std::printf("Freeze request: %.2f\n",command.parameter.delta);
+                    std::printf("Freeze request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kReverseParameterId)
+                {
+                    bool reverse_enable = command.parameter.delta == 1.0;
+                    audio_player.SetReverse(reverse_enable);
+                    std::printf("Reverse request: %.2f\n", command.parameter.delta);
                 }
             }
             else if (command.type == hw_interface::InputEventType::kNavigationEvent)
@@ -154,12 +160,12 @@ int main()
                 if (command.navigationDirection == hw_interface::NavigationDirection::kUp)
                 {
                     ret = file_manager.SelectNextFile();
-                    std::printf("Result: %d\n",ret);
+                    std::printf("Result: %d\n", ret);
                 }
                 else if (command.navigationDirection == hw_interface::NavigationDirection::kDown)
                 {
                     ret = file_manager.SelectPreviousFile();
-                    std::printf("Result: %d\n",ret);
+                    std::printf("Result: %d\n", ret);
                 }
             }
         }
