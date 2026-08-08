@@ -30,7 +30,7 @@ namespace app::audio::wav
         int FindDataChunk(const uint8_t *buffer, size_t buffer_size);
         int ReadData(const uint8_t *buffer, size_t buffer_size, audio_frame_t &frame, size_t n_frames);
         int GetDataSize();
-        bool IsEndOfFile();
+        bool IsEndOfFile(size_t position);
         int GetSampleRate();
         size_t GetNumChannels();
         int GetBitsPerSample();

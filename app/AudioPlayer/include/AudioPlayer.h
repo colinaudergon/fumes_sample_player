@@ -98,7 +98,7 @@ namespace app::audio
         char loaded_file_path_[kMaxFilePathLength] = {};
 
         static constexpr size_t kWavHeaderSize = 44;
-        size_t current_frame_index_{0};
+        size_t current_frame_index_{kWavHeaderSize};
         // Bounded scratch buffer used to stream+convert raw file bytes into Read()'s output in
         // chunks, avoiding both unbounded stack/heap use and any extra copy: WavFileHandler::
         // ReadData() converts straight from this buffer into the caller's output arrays.
@@ -110,7 +110,7 @@ namespace app::audio
         // call (matches hw_interface::NullAudioCodec::kMaxFramesPerCallback, the largest buffer
         // any current IAudioCodec backend hands to AudioPlayer::Read() at once).
         static constexpr size_t kMaxOutputFrames = 4096;
-
+        size_t file_read_index_{0};
         // Capacity of the pre-resample scratch buffers Read() fills at the file's native sample
         // rate before AdjustTime() stretches/compresses them into exactly kMaxOutputFrames output
         // frames: worst case is kMaxOutputFrames output frames at kMaxPlaybackSpeed.

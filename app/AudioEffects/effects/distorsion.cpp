@@ -33,10 +33,6 @@ void app::audio::Distorsion::Process(float *input_l, float *input_r, float *outp
 
 int app::audio::Distorsion::UpdateParameter(size_t parameter_id, float parameter_value)
 {
-    if (parameter_id == mix_lvl_.id)
-    {
-        mix_lvl_.value = parameter_value;
-    }
     if (parameter_id == threshold_lvl_.id)
     {
         threshold_lvl_.value = parameter_value;

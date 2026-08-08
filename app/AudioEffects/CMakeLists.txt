@@ -1,6 +1,7 @@
 add_library(AudioEffects STATIC
         src/EffectController.cpp
         effects/distorsion.cpp
+        effects/delay.cpp
 )
 
 # Paths are resolved relative to this file (not CMAKE_SOURCE_DIR) so this library builds

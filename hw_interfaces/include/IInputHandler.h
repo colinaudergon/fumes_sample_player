@@ -15,7 +15,8 @@ namespace hw_interface
         kPlayParameterId,
         kStopParameterId,
         kFreezeParameterdId,
-        kReverseParameterId
+        kReverseParameterId,
+        
     };
 
     enum class NavigationDirection

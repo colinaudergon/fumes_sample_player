@@ -203,6 +203,7 @@ int app::audio::wav::WavFileHandler::ReadData(const uint8_t *buffer, size_t buff
     }
 
     frame.n_frames = frames_read;
+
     file_read_index_ += buffer_size;
 
     return static_cast<int>(frames_read);
@@ -213,10 +214,10 @@ int app::audio::wav::WavFileHandler::GetDataSize()
     return static_cast<int>(data_size_);
 }
 
-bool app::audio::wav::WavFileHandler::IsEndOfFile()
+bool app::audio::wav::WavFileHandler::IsEndOfFile(size_t position)
 {
 
-    return file_read_index_ >= file_size_;
+    return position >= file_size_;
 }
 
 int app::audio::wav::WavFileHandler::GetSampleRate()
@@ -238,4 +239,3 @@ app::audio::wav::AudioFormat app::audio::wav::WavFileHandler::GetFormat()
 {
     return format_;
 }
-

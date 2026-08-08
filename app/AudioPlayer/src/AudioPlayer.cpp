@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cmath>
 
+#include <cstdio>
 int app::audio::AudioPlayer::Init(AudioPlayerConfiguration &configuration)
 {
     n_channels = configuration.n_channels;
@@ -79,6 +80,12 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
     {
         current_frame_index_ = 0;
     }
+
+    // file_read_index_ mirrors WavFileHandler's own file_read_index_ (used by IsEndOfFile()) and
+    // must be reset here too: otherwise it keeps whatever value accumulated from the previously
+    // loaded file, which can already be >= the new file's size, making IsEndOfFile() true
+    // immediately and Read() output silence from the very first call.
+    file_read_index_ = kWavHeaderSize;
     return 0;
 }
 
@@ -101,11 +108,6 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         n_frames_out = kMaxSourceFrames;
     }
 
-    if (is_freezed_ && is_playing_)
-    {
-        return static_cast<int>(n_frames);
-    }
-
     const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
     const size_t channels = wav_file_handler_.GetNumChannels();
     const size_t frame_bytes = bytes_per_sample * channels;
@@ -116,7 +118,7 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         return -1;
     }
 
-    if (file_ == nullptr || wav_file_handler_.IsEndOfFile() || is_playing_ == false)
+    if (file_ == nullptr || wav_file_handler_.IsEndOfFile(file_read_index_) || is_playing_ == false)
     {
         is_playing_ = false;
         // No more sample data to stream: fill the whole requested buffer with silence instead
@@ -146,6 +148,12 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         file_system_.Lseek(file_, offset);
     }
 
+    if (is_freezed_)
+    {
+        size_t offset = kWavHeaderSize + current_frame_index_ * frame_bytes;
+        file_system_.Lseek(file_, offset);
+    }
+
     while (frames_remaining > 0)
     {
         const size_t chunk_frames = std::min(frames_remaining, kMaxReadFrames);
@@ -156,6 +164,11 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         if (read_result != FsResult::kOk)
         {
             break;
+        }
+
+        if (!is_freezed_)
+        {
+            file_read_index_ += bytes_read;
         }
 
         // Convert + copy happen in the same pass: WavFileHandler::ReadData() writes straight
@@ -199,11 +212,17 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
     if (is_reverse_)
     {
         ReverseFrames(output, n_frames);
-        current_frame_index_ -= total_frames_read;
+        if (!is_freezed_)
+        {
+            current_frame_index_ -= total_frames_read;
+        }
     }
     else
     {
-        current_frame_index_ += total_frames_read; // forward
+        if (!is_freezed_)
+        {
+            current_frame_index_ += total_frames_read; // forward
+        }
     }
 
     return static_cast<int>(output.n_frames);

@@ -16,6 +16,9 @@ void app::audio::EffectController::Process(wav::audio_frame_t &input, wav::audio
     case static_cast<size_t>(EffectId::kDistorsion):
         dist_.Process(input.audio_l,input.audio_r,output.audio_l,output.audio_r,n_frames);
         break;
+        case static_cast<size_t>(EffectId::kDelay):
+        delay_.Process(input.audio_l,input.audio_r,output.audio_l,output.audio_r,n_frames);
+        break;
     default:
         break;
     }

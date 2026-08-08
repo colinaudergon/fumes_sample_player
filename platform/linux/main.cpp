@@ -158,6 +158,7 @@ int main()
                     audio_player.SetReverse(reverse_enable);
                     std::printf("Reverse request: %.2f\n", command.parameter.delta);
                 }
+                // kEffectParameterId
             }
             else if (command.type == hw_interface::InputEventType::kNavigationEvent)
             {
