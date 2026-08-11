@@ -40,6 +40,12 @@ get_filename_component(WAV_FILE_READER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../.. AB
 add_subdirectory(${WAV_FILE_READER_ROOT}/lib/FatFsCore ${CMAKE_CURRENT_BINARY_DIR}/lib/FatFsCore)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioPlayer ${CMAKE_CURRENT_BINARY_DIR}/app/AudioPlayer)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem)
+add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileManager ${CMAKE_CURRENT_BINARY_DIR}/app/FileManager)
+
+# SD-over-SPI IBlockDevice implementation (wraps the vendored carlk3/no-OS-FatFS-SD-SPI-RPi-Pico
+# driver, see app/FileSystem/hw_layer/SdInterface/CMakeLists.txt); RP2040-only, since it depends
+# on Pico SDK hardware_spi/hardware_dma.
+add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem/hw_layer/SdInterface ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem/hw_layer/SdInterface)
 
 # Add executable. Default name is the project name, version 0.1
 
@@ -49,15 +55,28 @@ pico_set_program_name(wav_file_reader "wav_file_reader")
 pico_set_program_version(wav_file_reader "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(wav_file_reader 0)
-pico_enable_stdio_usb(wav_file_reader 0)
+pico_enable_stdio_uart(wav_file_reader 1)
+pico_enable_stdio_usb(wav_file_reader 1)
 
 # Add the standard library to the build. pico_stdlib is linked here (rather than inside the
 # shared libraries) so that AudioPlayer/FileSystem stay free of any Pico SDK dependency and can
 # also be built for the native/Linux platform (see the repository root CMakeLists.txt).
+#
+# NOTE: FatFsCore's ff.c calls disk_read/disk_write/get_fattime (defined in FileSystem's
+# diskio.cpp), while FileSystem's FatFsFileSystemAdapter.cpp calls f_mount/f_open/etc. (defined
+# in FatFsCore) -- i.e. FatFsCore and FileSystem are mutually dependent static libraries. Once
+# FileManager/SdInterface were added to this link line, the flattened archive order left one of
+# these two symbol sets unresolved. Wrapping them (and their dependents) in a linker group makes
+# ld re-scan the group until all references resolve, regardless of archive order.
 target_link_libraries(wav_file_reader
     pico_stdlib
-    FileSystem)
+    -Wl,--start-group
+    FileSystem
+    FileManager
+    SdInterface
+    SdSpiDriver
+    FatFsCore
+    -Wl,--end-group)
 
 # Add the standard include files to the build
 target_include_directories(wav_file_reader PRIVATE

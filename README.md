@@ -25,7 +25,8 @@ hw_interfaces/          Interfaces + concrete hardware implementations
   i2s_audio_codec/       RP2040 I2S audio codec implementation
   linux/                 Native/Linux stub implementations (PosixBlockDevice, NullAudioCodec,
                          ConsoleInputHandler)
-lib/                    Vendored/third-party libraries (FatFsCore, pico_audio_i2s_32b)
+lib/                    Vendored/third-party libraries (FatFsCore, pico_audio_i2s_32b,
+                        no-OS-FatFS-SD-SPI-RPi-Pico)
 platform/
   rp2040/                Pico/RP2040 build entry point (CMakeLists.txt, pico_sdk_import.cmake,
                          wav_file_reader.cpp)
@@ -105,6 +106,20 @@ cmake --build build-rp2040
 
 `PICO_BOARD` defaults to `pico`; override it with `-DPICO_BOARD=<board>` if targeting a
 different board (e.g. `pico2`, `pico_w`).
+
+**Third-party dependency:** the RP2040 build's SD-over-SPI storage backend
+(`app/FileSystem/hw_layer/SdInterface/`) is built on top of the SD-over-SPI hardware driver from
+[carlk3/no-OS-FatFS-SD-SPI-RPi-Pico](https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico),
+vendored as a git submodule at `lib/no-OS-FatFS-SD-SPI-RPi-Pico`. Only its low-level driver
+(`sd_card.c`, `sd_spi.c`, `spi.c`, `crc.c`) is used — its own bundled FatFs core and diskio glue
+are not, since this project has its own (`lib/FatFsCore`, `app/FileSystem/src/diskio.cpp`). Run
+`git submodule update --init --recursive` (or clone with `--recurse-submodules`) before
+configuring the RP2040 build.
+
+> **Note:** `app/FileSystem/hw_layer/SdInterface/src/hw_config.c` currently configures a
+> **placeholder pinout** (copied from the vendored library's documented default wiring), not a
+> real hardware SD socket. Replace it with the actual SPI instance/GPIO assignments before
+> relying on this on real hardware. See `FATFS_PICO_PORTING.md` for details.
 
 ### Input handling
 

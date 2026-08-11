@@ -239,7 +239,43 @@ calls to `fs.open/read/write` changes.
 
 ---
 
-## 6. Benefits of This Architecture
+## 6. Concrete SD-over-SPI Implementation: `SdBlockDevice`
+
+This project's actual `IBlockDevice` implementation for RP2040
+(`app/FileSystem/hw_layer/SdInterface/`) follows the pattern above, with the SD-over-SPI protocol
+handling itself vendored rather than hand-written:
+
+- **Vendored driver**: [`carlk3/no-OS-FatFS-SD-SPI-RPi-Pico`](https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico)
+  is pulled in as a git submodule (`lib/no-OS-FatFS-SD-SPI-RPi-Pico`), but only its low-level
+  driver files are built (see `app/FileSystem/hw_layer/SdInterface/CMakeLists.txt`, target
+  `SdSpiDriver`): `sd_card.c`/`.h` (the `sd_card_t` state machine — init, CMD17/18 reads,
+  CMD24/25 writes), `sd_spi.c`/`.h` (command/response framing), `spi.c`/`.h` (Pico SDK
+  `hardware_spi` + DMA transport), and `crc.c`/`.h` (CRC7/CRC16). The submodule's own bundled
+  FatFs core, `diskio.c`-equivalent glue (`glue.c`), and CLI/demo helpers
+  (`ff_stdio.c`/`f_util.c`/`rtc.c`/`demo_logging.c`) are **not** built — this project already has
+  its own `FatFsCore`, `diskio.cpp`, and `FatFsFileSystemAdapter`, so pulling those in too would
+  create a second, conflicting FatFs core in the same binary.
+- **`hw_config.c`**: the vendored driver expects the application to implement
+  `sd_get_num()`/`sd_get_by_num()`/`spi_get_num()`/`spi_get_by_num()` (declared in its
+  `hw_config.h`) describing which SPI controller(s)/pin(s)/SD card(s) exist. This project
+  supplies its own (`app/FileSystem/hw_layer/SdInterface/src/hw_config.c`). **It currently
+  configures a placeholder pinout** (the vendored library's documented default: SPI0, MISO=16,
+  MOSI=19, SCK=18, CS=17, no card-detect) — replace it with the real hardware's wiring before
+  relying on this on an actual board.
+- **`SdBlockDevice`** (`.../src/SdBlockDevice.cpp`) is the thin `IBlockDevice` adapter: it calls
+  `sd_init_driver()` + `sd_card_t::init()` from `Init()`, forwards `Read()`/`Write()` straight to
+  `sd_card_t::read_blocks`/`write_blocks`, and implements `Ioctl()` (`kGetSectorCount` via
+  `sd_sectors()`, `kGetSectorSize`/`kGetBlockSize` as the fixed 512-byte sector size, `kCtrlSync`
+  as a no-op since the driver's SPI transfers are already synchronous, and `kCtrlTrim` as
+  unsupported since the vendored driver doesn't issue SD erase commands).
+- **Wiring**: `platform/rp2040/wav_file_reader.cpp` constructs a static `SdBlockDevice`, calls
+  `filesystem::RegisterBlockDevice(0, &sd_block_device)`, and calls `Init()` before any
+  filesystem access — the same registration pattern `diskio.cpp` expects from any
+  `IBlockDevice` (see section 2.2 above).
+
+---
+
+## 7. Benefits of This Architecture
 
 - **Hardware independence**: swap SD-over-SPI ↔ SDIO ↔ QSPI flash by writing a new
   `IBlockDevice` implementation; `diskio.c`, FatFs core, and the app are untouched.
