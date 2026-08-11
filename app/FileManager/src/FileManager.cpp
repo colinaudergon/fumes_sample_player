@@ -15,6 +15,7 @@ int app::filesystem::FileManager::Init(const char *disk_path, uint8_t supported_
     }
 
     memcpy(disk_path_, disk_path, kDiskPathMaxLen);
+    disk_path_[kDiskPathMaxLen] = '\0';
 
     int bank_count = CountBanksOnDisk();
 

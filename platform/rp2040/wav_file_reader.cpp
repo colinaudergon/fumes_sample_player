@@ -10,6 +10,10 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "hardware/gpio.h"
+
+static constexpr uint kBlinkLedGpio = 0;
+static constexpr uint32_t kBlinkPeriodMs = 500;
 
 #include "FileManager.h"
 #include "IBlockDevice.h"
@@ -20,10 +24,12 @@ int main()
 {
     stdio_init_all();
 
+    gpio_init(kBlinkLedGpio);
+    gpio_set_dir(kBlinkLedGpio, GPIO_OUT);
+    sleep_ms(kBlinkPeriodMs);
     // Register and initialize the SD-over-SPI storage backend (app/FileSystem/hw_layer/
     // SdInterface/, wrapping the vendored carlk3/no-OS-FatFS-SD-SPI-RPi-Pico driver) as FatFs
     // drive 0, so diskio.cpp's disk_* functions have a working IBlockDevice to forward to.
-    // NOTE: hw_config.c currently configures a PLACEHOLDER pinout, not real hardware wiring.
     static filesystem::SdBlockDevice sd_block_device;
     filesystem::RegisterBlockDevice(0, &sd_block_device);
     sd_block_device.Init();
@@ -45,9 +51,11 @@ int main()
         // FileManager::CountBanksOnDisk()/ValidateBankName()); these are the "folders" on the
         // SD card that this firmware treats as sample banks.
         app::filesystem::FileManager file_manager;
-        if (file_manager.Init(disk_path, static_cast<uint8_t>(app::filesystem::SupportedFileExtensions::KWav)) < 0)
+        int file_manager_init_result = file_manager.Init(disk_path, static_cast<uint8_t>(app::filesystem::SupportedFileExtensions::KWav));
+        
+        if (file_manager_init_result < 0)
         {
-            printf("Failed to initialize file manager\n");
+            printf("Failed to initialize file manager: %d\n",file_manager_init_result);
         }
         else
         {
@@ -56,7 +64,10 @@ int main()
     }
 
     while (true) {
-        sleep_ms(1000);
+        gpio_put(kBlinkLedGpio, true);
+        sleep_ms(kBlinkPeriodMs);
+        gpio_put(kBlinkLedGpio, false);
+        sleep_ms(kBlinkPeriodMs);
     }
 }
 

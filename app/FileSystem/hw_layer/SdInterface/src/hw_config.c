@@ -18,16 +18,16 @@
 
 static spi_t spi0_config = {
     .hw_inst = spi0,
-    .miso_gpio = 16,
-    .mosi_gpio = 19,
-    .sck_gpio = 18,
+    .miso_gpio = 4,
+    .mosi_gpio = 7,
+    .sck_gpio = 6,
     .baud_rate = 12500 * 1000, // 12.5 MHz, placeholder (see file header comment)
 };
 
 static sd_card_t sd0_config = {
     .pcName = "0:",
     .spi = &spi0_config,
-    .ss_gpio = 17,
+    .ss_gpio = 8,
     .use_card_detect = false, // No card-detect GPIO wired yet (placeholder hardware)
 };
 
