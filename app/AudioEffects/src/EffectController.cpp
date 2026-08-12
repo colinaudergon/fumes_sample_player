@@ -1,5 +1,12 @@
 #include "EffectController.h"
 
+app::audio::EffectController::EffectController()
+{
+    dist_.Init();
+    delay_.Init();
+    cloud_reverb_.Init();
+}
+
 void app::audio::EffectController::SelectEffect(size_t effect_index)
 {
     selected_effect_ = effect_index;
@@ -18,6 +25,9 @@ void app::audio::EffectController::Process(wav::audio_frame_t &input, wav::audio
         break;
         case static_cast<size_t>(EffectId::kDelay):
         delay_.Process(input.audio_l,input.audio_r,output.audio_l,output.audio_r,n_frames);
+        break;
+        case static_cast<size_t>(EffectId::kCloudsReverb):
+        cloud_reverb_.Process(input.audio_l,input.audio_r,output.audio_l,output.audio_r,n_frames);
         break;
     default:
         break;
