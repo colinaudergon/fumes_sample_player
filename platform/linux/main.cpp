@@ -46,7 +46,7 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
     // audio_buffer_t's fields but belongs to the app layer.
     app::audio::wav::audio_frame_t frame{current.buffer_left, current.buffer_right, current.buffer_len};
     audio_player.Read(frame, current.buffer_len);
-    // effect_controller.Process(frame,frame,current.buffer_len);
+    effect_controller.Process(frame,frame,current.buffer_len);
 }
 
 int main()

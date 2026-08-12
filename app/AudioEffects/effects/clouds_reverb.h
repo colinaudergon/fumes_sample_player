@@ -26,12 +26,6 @@ namespace app::audio
         typedef FxEngine<16384, FORMAT_12_BIT> E;
         E engine_;
 
-        // float amount_;
-        // float input_gain_;
-        // float reverb_time_;
-        // float diffusion_;
-        // float lp_;
-
         float lp_decay_1_;
         float lp_decay_2_;
         static constexpr size_t kAmountParameterId = 1;

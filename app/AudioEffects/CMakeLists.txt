@@ -3,6 +3,7 @@ add_library(AudioEffects STATIC
         effects/distorsion.cpp
         effects/delay.cpp
         effects/clouds_reverb.cpp
+        effects/bitcrusher.cpp
 )
 
 # Paths are resolved relative to this file (not CMAKE_SOURCE_DIR) so this library builds
