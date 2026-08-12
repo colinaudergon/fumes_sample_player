@@ -11,6 +11,17 @@ lets the same application code build for either:
 
 See [`FATFS_PICO_PORTING.md`](FATFS_PICO_PORTING.md) for details on the layered architecture.
 
+## Next Steps
+In no particular order:
+- Implement the card detect mechanism, bubble the event to the user interface.
+- Implement RP2040 user interface.
+- Move from a static HW configuration for the SD card to a dynamic configuration, not especially for the pinout, but to reach the maximum SPI speed supported by a specific card. (Self optimization at start up)
+- Implement the PWM audio output.
+- Draw hardware schematic and route PCB.
+- Design Interface and controller (how many knobs, button, use screen or led matrix)
+- Either validate or remove the built-in audio effect, if kept, port the cloud reverb by mutable instrument to this code base.
+
+
 ## Repository layout
 
 ```
