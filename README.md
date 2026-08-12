@@ -1,6 +1,7 @@
 # wav_file_reader
 
-A WAV file player built around a hardware-agnostic app layer (`AudioPlayer`, `FileSystem`,
+
+An audio file player meant to be turned into a synthesizer module, built around a hardware-agnostic app layer (`AudioPlayer`, `FileSystem`,
 `FatFsCore`) that talks to hardware only through interfaces (`IAudioCodec`, `IBlockDevice`,
 `IFileSystem`). Concrete implementations of those interfaces are swapped per platform, which
 lets the same application code build for either:
@@ -20,6 +21,7 @@ In no particular order:
 - Draw hardware schematic and route PCB.
 - Design Interface and controller (how many knobs, button, use screen or led matrix)
 - Either validate or remove the built-in audio effect, if kept, port the cloud reverb by mutable instrument to this code base.
+- Mock panel design.
 
 
 ## Repository layout
