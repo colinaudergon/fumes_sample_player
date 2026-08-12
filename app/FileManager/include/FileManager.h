@@ -37,7 +37,10 @@ namespace app::filesystem
         
         uint8_t supported_file_extensions_mask_{0x00};
         
-        char disk_path_[kDiskPathMaxLen];
+        // +1 for the null terminator: disk_path_ is handed to IFileSystem::OpenDir() as a
+        // plain C-string (see CountBanksOnDisk()), so it must be NUL-terminated, unlike
+        // SelectBank()'s use of disk_path_ via "%.*s" (which relies on kDiskPathMaxLen instead).
+        char disk_path_[kDiskPathMaxLen + 1];
         size_t current_bank_{0};
         // 2 for disk path, bank_[2]
         static constexpr size_t kBankPathMaxLen = 10;
