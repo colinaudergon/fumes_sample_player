@@ -35,7 +35,7 @@ hw_interfaces/          Interfaces + concrete hardware implementations
   include/               IAudioCodec, IInputHandler, IStorageController interfaces,
                          CompositeInputHandler (platform-agnostic input aggregator)
   pico_adc/              RP2040 ADC implementation
-  i2s_audio_codec/       RP2040 I2S audio codec implementation
+  pwm_audio_codec        PWM audio output codec
   linux/                 Native/Linux stub implementations (PosixBlockDevice, NullAudioCodec,
                          ConsoleInputHandler)
 lib/                    Vendored/third-party libraries (FatFsCore, pico_audio_i2s_32b,

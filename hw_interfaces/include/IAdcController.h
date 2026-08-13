@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace hw_interface
 {
@@ -9,10 +10,10 @@ namespace hw_interface
     struct Adc
     {
         uint gpio;
-        uint8 adc_id;
-        uint16 deadband_low_threshold;
-        uint16 deadband_high_threshold;
-        uint8 assigned_buffer_position;
+        uint8_t adc_id;
+        uint16_t deadband_low_threshold;
+        uint16_t deadband_high_threshold;
+        uint8_t assigned_buffer_position;
     };
 
     // Opaque, implementation-defined configuration blob passed to IAdcController::Init().
@@ -35,14 +36,14 @@ namespace hw_interface
         virtual int Init(const AdcConfig &config) = 0;
         virtual int StartReading() = 0;
         virtual int StopReading() = 0;
-        virtual int SetAdcDeadBand(uint8 adc_id, uint16 deadband_low_threshold, uint16 deadband_high_threshold) = 0;
+        virtual int SetAdcDeadBand(uint8_t adc_id, uint16_t deadband_low_threshold, uint16_t deadband_high_threshold) = 0;
         virtual bool IsReadingValid() = 0;
         
         virtual int GetAllNormalizedReading(float& buffer) = 0;
-        virtual int GetNormalizedReading(uint8 adc_id, float& normalized_value) = 0;
+        virtual int GetNormalizedReading(uint8_t adc_id, float& normalized_value) = 0;
         
-        virtual int GetAllRawReading(uint16& buffer) = 0;
-        virtual int GetRawReading(uint8 adc_id,uint16& raw_value) = 0;
+        virtual int GetAllRawReading(uint16_t& buffer) = 0;
+        virtual int GetRawReading(uint8_t adc_id,uint16_t& raw_value) = 0;
         
         static constexpr int kAdcControllerSuccess = 0;
         static constexpr int kAdcControllerErr = -1;

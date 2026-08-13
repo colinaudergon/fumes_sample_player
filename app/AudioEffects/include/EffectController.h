@@ -41,7 +41,7 @@ namespace app::audio
         size_t selected_effect_{3};
 
         static constexpr size_t kNumMaxChainedEffect = 4;
-        EffectId chained_effect_[kNumMaxChainedEffect] = {EffectId::kBitCrusher,EffectId::kCloudsReverb,EffectId::kNone,EffectId::kNone};
+        EffectId chained_effect_[kNumMaxChainedEffect] = {EffectId::kDelay,EffectId::kBitCrusher,EffectId::kCloudsReverb,EffectId::kBitCrusher};
 
         // Chaining effects means each stage must read the *previous* stage's output rather than
         // the original input (see EffectController::Process). Since IAudioEffect::Process takes
