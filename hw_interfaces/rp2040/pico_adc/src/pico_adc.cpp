@@ -7,8 +7,8 @@ namespace hw_interface
 
     namespace
     {
-        constexpr uint8 kAdcGpioMin = 26;
-        constexpr uint8 kAdcGpioMax = 29;
+        constexpr uint8_t kAdcGpioMin = 26;
+        constexpr uint8_t kAdcGpioMax = 29;
     }
 
     int PicoAdcController::Init(const AdcConfig &config)
@@ -24,7 +24,7 @@ namespace hw_interface
         const uint adc_gpio_map[kNbrAdc] = {pico_config.adc_1_gpio, pico_config.adc_2_gpio,
                                              pico_config.adc_3_gpio, pico_config.adc_4_gpio};
 
-        for (uint8 index = 0; index < kNbrAdc; ++index)
+        for (uint8_t index = 0; index < kNbrAdc; ++index)
         {
             if ((adc_gpio_map[index] < kAdcGpioMin) || (adc_gpio_map[index] > kAdcGpioMax))
             {
@@ -34,10 +34,10 @@ namespace hw_interface
 
         adc_init();
 
-        for (uint8 index = 0; index < kNbrAdc; ++index)
+        for (uint8_t index = 0; index < kNbrAdc; ++index)
         {
             internal_adcs_[index].gpio = adc_gpio_map[index];
-            internal_adcs_[index].adc_id = static_cast<uint8>(adc_gpio_map[index] - kAdcGpioMin);
+            internal_adcs_[index].adc_id = static_cast<uint8_t>(adc_gpio_map[index] - kAdcGpioMin);
             internal_adcs_[index].deadband_low_threshold = 0;
             internal_adcs_[index].deadband_high_threshold = 0;
             internal_adcs_[index].assigned_buffer_position = index;
@@ -91,7 +91,7 @@ namespace hw_interface
         return kAdcControllerSuccess;
     }
 
-    int PicoAdcController::SetAdcDeadBand(uint8 adc_id, uint16 deadband_low_threshold, uint16 deadband_high_threshold)
+    int PicoAdcController::SetAdcDeadBand(uint8_t adc_id, uint16_t deadband_low_threshold, uint16_t deadband_high_threshold)
     {
         const int buffer_position = GetBufferPositionFromAdcId(adc_id);
         if (buffer_position < 0)
@@ -113,7 +113,7 @@ namespace hw_interface
     int PicoAdcController::GetAllNormalizedReading(float &buffer)
     {
         float *buffer_ptr = &buffer;
-        for (uint8 index = 0; index < kNbrAdc; ++index)
+        for (uint8_t index = 0; index < kNbrAdc; ++index)
         {
             buffer_ptr[index] = normalized_reading_[index];
         }
@@ -121,7 +121,7 @@ namespace hw_interface
         return kAdcControllerSuccess;
     }
 
-    int PicoAdcController::GetNormalizedReading(uint8 adc_id, float &normalized_value)
+    int PicoAdcController::GetNormalizedReading(uint8_t adc_id, float &normalized_value)
     {
         const int buffer_position = GetBufferPositionFromAdcId(adc_id);
         if (buffer_position < 0)
@@ -133,10 +133,10 @@ namespace hw_interface
         return kAdcControllerSuccess;
     }
 
-    int PicoAdcController::GetAllRawReading(uint16 &buffer)
+    int PicoAdcController::GetAllRawReading(uint16_t &buffer)
     {
-        uint16 *buffer_ptr = &buffer;
-        for (uint8 index = 0; index < kNbrAdc; ++index)
+        uint16_t *buffer_ptr = &buffer;
+        for (uint8_t index = 0; index < kNbrAdc; ++index)
         {
             buffer_ptr[index] = raw_reading_[index];
         }
@@ -144,7 +144,7 @@ namespace hw_interface
         return kAdcControllerSuccess;
     }
 
-    int PicoAdcController::GetRawReading(uint8 adc_id, uint16 &raw_value)
+    int PicoAdcController::GetRawReading(uint8_t adc_id, uint16_t &raw_value)
     {
         const int buffer_position = GetBufferPositionFromAdcId(adc_id);
         if (buffer_position < 0)
@@ -156,7 +156,7 @@ namespace hw_interface
         return kAdcControllerSuccess;
     }
 
-    int PicoAdcController::GetBufferPositionFromAdcId(uint8 adc_id) const
+    int PicoAdcController::GetBufferPositionFromAdcId(uint8_t adc_id) const
     {
         for (const auto &adc : internal_adcs_)
         {
@@ -177,11 +177,11 @@ namespace hw_interface
             return;
         }
 
-        const uint8 adc_position = next_adc_position_;
+        const uint8_t adc_position = next_adc_position_;
         const Adc &adc = internal_adcs_[adc_position];
 
         adc_select_input(adc.adc_id);
-        const uint16 new_raw_reading = adc_read();
+        const uint16_t new_raw_reading = adc_read();
 
         bool is_valid = false;
 
@@ -191,17 +191,17 @@ namespace hw_interface
         }
         else
         {
-            const uint16 previous_raw_reading = previous_valid_raw_reading_[adc_position];
-            const uint16 lower_bound = (previous_raw_reading > adc.deadband_low_threshold)
-                                             ? static_cast<uint16>(previous_raw_reading - adc.deadband_low_threshold)
+            const uint16_t previous_raw_reading = previous_valid_raw_reading_[adc_position];
+            const uint16_t lower_bound = (previous_raw_reading > adc.deadband_low_threshold)
+                                             ? static_cast<uint16_t>(previous_raw_reading - adc.deadband_low_threshold)
                                              : 0;
 
-            uint32 upper_bound_u32 = static_cast<uint32>(previous_raw_reading) + adc.deadband_high_threshold;
+            uint32_t upper_bound_u32 = static_cast<uint32_t>(previous_raw_reading) + adc.deadband_high_threshold;
             if (upper_bound_u32 > kAdcMaxValue)
             {
                 upper_bound_u32 = kAdcMaxValue;
             }
-            const uint16 upper_bound = static_cast<uint16>(upper_bound_u32);
+            const uint16_t upper_bound = static_cast<uint16_t>(upper_bound_u32);
 
             is_valid = (new_raw_reading < lower_bound) || (new_raw_reading > upper_bound);
         }
@@ -215,7 +215,7 @@ namespace hw_interface
         }
 
         last_reading_valid_ = is_valid;
-        next_adc_position_ = static_cast<uint8>((next_adc_position_ + 1) % kNbrAdc);
+        next_adc_position_ = static_cast<uint8_t>((next_adc_position_ + 1) % kNbrAdc);
     }
 
     bool PicoAdcController::ReadingTimerCallback(repeating_timer_t *timer)

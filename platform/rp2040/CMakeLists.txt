@@ -47,6 +47,11 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileManager ${CMAKE_CURRENT_BINARY_
 # on Pico SDK hardware_spi/hardware_dma.
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem/hw_layer/SdInterface ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem/hw_layer/SdInterface)
 
+# RP2040-only hardware interfaces (ADC and PWM audio output codec), depend on Pico SDK
+# hardware_adc/hardware_dma/hardware_pwm.
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_adc ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pico_adc)
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pwm_audio_codec ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pwm_audio_codec)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(wav_file_reader wav_file_reader.cpp )
@@ -76,6 +81,9 @@ target_link_libraries(wav_file_reader
     SdInterface
     SdSpiDriver
     FatFsCore
+    pico_adc
+    pwm_audio_codec
+    AudioPlayer
     -Wl,--end-group)
 
 # Add the standard include files to the build
