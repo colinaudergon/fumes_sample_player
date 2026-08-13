@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
+#include "hardware/clocks.h"
 
 static constexpr uint kBlinkLedGpio = 0;
 static constexpr uint32_t kBlinkPeriodMs = 500;
@@ -21,11 +22,13 @@ static constexpr uint32_t kBlinkPeriodMs = 500;
 #include "SdBlockDevice.h"
 #include "AudioPlayer.h"
 #include "pwm_audio_codec.h"
+#include "EffectController.h"
 
 app::audio::AudioPlayer audio_player;
 hw_interface::PicoAudioCodec audio_codec;
 filesystem::SdBlockDevice sd_block_device;
 app::filesystem::FileManager file_manager;
+app::audio::EffectController effect_controller;
 
 void InitUI();
 int InitFileSystem();
@@ -38,13 +41,14 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
     hw_interface::audio_buffer_t &current = *buffer_0;
     app::audio::wav::audio_frame_t frame{current.buffer_left, current.buffer_right, current.buffer_len};
     audio_player.Read(frame, current.buffer_len);
+    effect_controller.Process(frame, frame, current.buffer_len);
 }
 
 int main()
 {
 
     stdio_init_all();
-
+    set_sys_clock_khz(176000, true);
     InitUI();
 
     int res = InitFileSystem();
@@ -108,6 +112,17 @@ int main()
             led_on = !led_on;
             gpio_put(kBlinkLedGpio, led_on);
             last_blink_ms = now_ms;
+
+            // Direct proof (or disproof) of main-loop buffer starvation: each increment means
+            // ServiceRefill() didn't run in time and the DMA replayed a stale buffer -- an
+            // audible click/stutter. See PicoAudioCodec::GetMissedRefillCount().
+            static uint32_t last_missed = 0;
+            uint32_t missed = audio_codec.GetMissedRefillCount();
+            if (missed != last_missed)
+            {
+                printf("[wav_file_reader] missed refill count: %lu\n", static_cast<unsigned long>(missed));
+                last_missed = missed;
+            }
         }
     }
 }

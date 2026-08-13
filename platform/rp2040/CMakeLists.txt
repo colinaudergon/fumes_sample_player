@@ -41,7 +41,14 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/lib/FatFsCore ${CMAKE_CURRENT_BINARY_DI
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioPlayer ${CMAKE_CURRENT_BINARY_DIR}/app/AudioPlayer)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileManager ${CMAKE_CURRENT_BINARY_DIR}/app/FileManager)
+add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioEffects ${CMAKE_CURRENT_BINARY_DIR}/app/AudioEffects)
 
+# AudioPlayer's per-callback scratch buffers default to a size matching the native/Linux build's
+# NullAudioCodec (4096 frames), which would reserve ~128KB of SRAM it's never asked to use here
+# -- hw_interface::PicoAudioCodec only ever calls back with 256-frame buffers (see
+# PicoAudioCodec::kBufferSize). Overriding this down to 256 for just this build tree is what
+# keeps wav_file_reader.elf's .bss inside the RP2040's much smaller SRAM.
+target_compile_definitions(AudioPlayer PUBLIC APP_AUDIO_MAX_FRAMES_PER_CALLBACK=256)
 # SD-over-SPI IBlockDevice implementation (wraps the vendored carlk3/no-OS-FatFS-SD-SPI-RPi-Pico
 # driver, see app/FileSystem/hw_layer/SdInterface/CMakeLists.txt); RP2040-only, since it depends
 # on Pico SDK hardware_spi/hardware_dma.
@@ -75,6 +82,7 @@ pico_enable_stdio_usb(wav_file_reader 1)
 # ld re-scan the group until all references resolve, regardless of archive order.
 target_link_libraries(wav_file_reader
     pico_stdlib
+    hardware_clocks
     -Wl,--start-group
     FileSystem
     FileManager
@@ -84,6 +92,7 @@ target_link_libraries(wav_file_reader
     pico_adc
     pwm_audio_codec
     AudioPlayer
+    AudioEffects
     -Wl,--end-group)
 
 # Add the standard include files to the build

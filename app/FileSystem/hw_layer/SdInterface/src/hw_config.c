@@ -21,7 +21,8 @@ static spi_t spi0_config = {
     .miso_gpio = 4,
     .mosi_gpio = 7,
     .sck_gpio = 6,
-    .baud_rate = 12500 * 1000, // 12.5 MHz, placeholder (see file header comment)
+    // .baud_rate = 12500 * 1000, // 12.5 MHz, placeholder (see file header comment)
+    .baud_rate = 20000 * 1000, // 25 MHz, placeholder (see file header comment)
 };
 
 static sd_card_t sd0_config = {

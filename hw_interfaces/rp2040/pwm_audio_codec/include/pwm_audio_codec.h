@@ -46,6 +46,13 @@ namespace hw_interface
         //          actual frequency (Hz, rounded to the nearest integer) that was set instead.
         int SetOutputFrequency(float new_frequency_hz);
 
+        // Number of times AcknoledgeIrq() has fired while the previous refill was still
+        // pending (i.e. ServiceRefill() didn't run in time before the buffer it refills was
+        // needed again) -- a direct measure of main-loop buffer starvation. Each occurrence
+        // means the DMA replayed a stale buffer instead of fresh audio, which is audible as a
+        // click/stutter. Safe to read from the main loop at any time (see missed_refill_count_).
+        uint32_t GetMissedRefillCount() const { return missed_refill_count_; }
+
     private:
         // Two adjacent-numbered placeholder GPIOs chosen so they land on different PWM slices
         // (RP2040 maps gpio -> slice as (gpio >> 1) & 7, so pins 2 apart are always on different
@@ -148,6 +155,11 @@ namespace hw_interface
         // fresh data; cleared by ServiceRefill() (main-loop context) once it has serviced that
         // request. Volatile for the same cross-context-visibility reason as playing_index_.
         volatile bool refill_pending_ = false;
+
+        // Incremented in AcknoledgeIrq() whenever it fires and finds refill_pending_ still
+        // true from the previous pass -- i.e. the main loop didn't call ServiceRefill() in time,
+        // so the DMA is about to replay a stale buffer. See GetMissedRefillCount().
+        volatile uint32_t missed_refill_count_ = 0;
 
         float buffer_0_left_[kBufferSize] = {};
         float buffer_0_right_[kBufferSize] = {};

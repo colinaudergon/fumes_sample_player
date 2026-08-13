@@ -107,9 +107,17 @@ namespace app::audio
         uint8_t read_scratch_buffer_[kMaxReadFrames * kMaxBytesPerFrame];
 
         // Read()'s precondition: callers must not request more than this many output frames per
-        // call (matches hw_interface::NullAudioCodec::kMaxFramesPerCallback, the largest buffer
-        // any current IAudioCodec backend hands to AudioPlayer::Read() at once).
-        static constexpr size_t kMaxOutputFrames = 4096;
+        // call. Defaults to 4096 (matching hw_interface::NullAudioCodec::kMaxFramesPerCallback,
+        // the largest buffer the native/Linux build's IAudioCodec backend hands to
+        // AudioPlayer::Read() at once), but is overridable at compile time via
+        // APP_AUDIO_MAX_FRAMES_PER_CALLBACK -- e.g. the RP2040 build overrides this to 256
+        // (hw_interface::PicoAudioCodec's actual buffer size) since the desktop-sized default
+        // would otherwise reserve ~128KB for time_adjust_source_l_/r_ alone, overflowing the
+        // RP2040's much smaller SRAM.
+#ifndef APP_AUDIO_MAX_FRAMES_PER_CALLBACK
+#define APP_AUDIO_MAX_FRAMES_PER_CALLBACK 4096
+#endif
+        static constexpr size_t kMaxOutputFrames = APP_AUDIO_MAX_FRAMES_PER_CALLBACK;
         size_t file_read_index_{0};
         // Capacity of the pre-resample scratch buffers Read() fills at the file's native sample
         // rate before AdjustTime() stretches/compresses them into exactly kMaxOutputFrames output

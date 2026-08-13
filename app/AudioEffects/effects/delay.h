@@ -32,7 +32,7 @@ namespace app::audio
         AudioEffectParameter wet_mix_ = {
             .id = 2,
             // .value = 0.99
-            .value = 0.5
+            .value = 0.9
         };
 
         size_t left_write_index_{0};

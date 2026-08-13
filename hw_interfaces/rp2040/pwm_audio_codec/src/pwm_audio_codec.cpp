@@ -248,26 +248,6 @@ namespace hw_interface
             ConvertChannelToPwmBuffer(buffer_0_.buffer_right, channel_r_.pwm_buffer_0);
             filled_pwm_buffer_l = channel_l_.pwm_buffer_0;
         }
-
-#ifdef PWM_AUDIO_CODEC_DEBUG_PRINT
-        // TEMPORARY diagnostic: confirm real (non-flat) audio is actually reaching the PWM
-        // buffers, and how often refills actually happen (vs. just being polled). Remove once
-        // the "no audio output" issue is resolved.
-        static uint32_t refill_count = 0;
-        refill_count++;
-        uint8_t min_val = filled_pwm_buffer_l[0];
-        uint8_t max_val = filled_pwm_buffer_l[0];
-        for (size_t i = 1; i < kBufferSize; i++)
-        {
-            min_val = std::min(min_val, filled_pwm_buffer_l[i]);
-            max_val = std::max(max_val, filled_pwm_buffer_l[i]);
-        }
-        if ((refill_count % 51) == 0)
-        {
-            printf("[pwm_audio_codec] refill #%lu: L pwm min=%u max=%u (midpoint=%u)\n",
-                   static_cast<unsigned long>(refill_count), min_val, max_val, kDefaultWrap / 2);
-        }
-#endif
     }
 
     void PicoAudioCodec::AcknoledgeIrq()
@@ -291,6 +271,14 @@ namespace hw_interface
         // Only the left channel's trigger DMA has its completion IRQ enabled, so only its bit
         // needs clearing.
         dma_hw->ints1 = (1u << channel_l_.trigger_dma_chan);
+
+        // If refill_pending_ is still set from the previous pass, ServiceRefill() didn't run in
+        // time: the buffer we just switched to playing is stale (not refreshed since two passes
+        // ago), so this is an audible underrun. Count it before overwriting the flag below.
+        if (refill_pending_)
+        {
+            missed_refill_count_++;
+        }
 
         // Flag that the buffer pair which just finished playing needs to be refilled, ready for
         // the pass after next. Deferred to ServiceRefill() -- see its comment for why.
