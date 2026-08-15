@@ -23,12 +23,14 @@ static constexpr uint32_t kBlinkPeriodMs = 500;
 #include "AudioPlayer.h"
 #include "pwm_audio_codec.h"
 #include "EffectController.h"
+#include "pico_display.h"
 
 app::audio::AudioPlayer audio_player;
 hw_interface::PicoAudioCodec audio_codec;
 filesystem::SdBlockDevice sd_block_device;
 app::filesystem::FileManager file_manager;
 app::audio::EffectController effect_controller;
+hw_interface::PicoDisplay display;
 
 void InitUI();
 int InitFileSystem();
@@ -78,6 +80,8 @@ int main()
                 printf("Failed to init the audio system:%d\n", res);
             }
             printf("File loaded: %s\n", file_path);
+
+            display.DisplayFileInfo(file_path,audio_player.GetDurationMs());
         }
         else
         {
@@ -132,6 +136,18 @@ void InitUI()
     gpio_init(kBlinkLedGpio);
     gpio_set_dir(kBlinkLedGpio, GPIO_OUT);
     sleep_ms(kBlinkPeriodMs);
+
+    // Bring up the SSD1306 SPI OLED (see hw_interfaces/rp2040/pico_display) and show a
+    // placeholder so the display/wiring can be validated on hardware before anything else
+    // (file system, audio) is wired up to it.
+    if (display.Init() == 0)
+    {
+        display.ShowText("Display OK");
+    }
+    else
+    {
+        printf("Failed to init display\n");
+    }
 }
 
 int InitFileSystem()
