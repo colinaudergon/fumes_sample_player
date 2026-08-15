@@ -59,6 +59,12 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem/hw_layer/SdInterface ${C
 add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_adc ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pico_adc)
 add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pwm_audio_codec ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pwm_audio_codec)
 
+# RP2040-only user-input sources (ported from gv_lib's pico_gv_drivers): gpio_interrupts is a
+# shared single-callback GPIO IRQ dispatcher, rotary_encoder is a hw_interface::IInputHandler
+# implementation built on top of it.
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/gpio_interrupts ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/gpio_interrupts)
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/rotary_encoder ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/rotary_encoder)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(wav_file_reader wav_file_reader.cpp )
@@ -91,6 +97,8 @@ target_link_libraries(wav_file_reader
     FatFsCore
     pico_adc
     pwm_audio_codec
+    rotary_encoder
+    gpio_interrupts
     AudioPlayer
     AudioEffects
     -Wl,--end-group)
