@@ -42,6 +42,7 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioPlayer ${CMAKE_CURRENT_BINARY_
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileManager ${CMAKE_CURRENT_BINARY_DIR}/app/FileManager)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioEffects ${CMAKE_CURRENT_BINARY_DIR}/app/AudioEffects)
+add_subdirectory(${WAV_FILE_READER_ROOT}/app/UserInterface ${CMAKE_CURRENT_BINARY_DIR}/app/UserInterface)
 
 # AudioPlayer's per-callback scratch buffers default to a size matching the native/Linux build's
 # NullAudioCodec (4096 frames), which would reserve ~128KB of SRAM it's never asked to use here
@@ -81,7 +82,7 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_display ${CMA
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(wav_file_reader wav_file_reader.cpp )
+add_executable(wav_file_reader wav_file_reader.cpp utils/cross_core_queues.cpp)
 
 pico_set_program_name(wav_file_reader "wav_file_reader")
 pico_set_program_version(wav_file_reader "0.1")
@@ -102,6 +103,7 @@ pico_enable_stdio_usb(wav_file_reader 1)
 # ld re-scan the group until all references resolve, regardless of archive order.
 target_link_libraries(wav_file_reader
     pico_stdlib
+    pico_multicore
     hardware_clocks
     -Wl,--start-group
     FileSystem
@@ -115,6 +117,7 @@ target_link_libraries(wav_file_reader
     gpio_interrupts
     pico_display
     u8g2
+    UserInterface
     AudioPlayer
     AudioEffects
     -Wl,--end-group)
