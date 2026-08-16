@@ -6,32 +6,32 @@ void app::ui::UserInterface::ProcessUi()
     if (input_handler_.PollEvent(event))
     {
 
-        if (event.type == hw_interface::InputEventType::kNavigationEvent)
-        {
-            if (event.navigationDirection == hw_interface::NavigationDirection::kUp)
-            {
-                display_.ShowText("Up cmd\n");
-            }
-            else if (event.navigationDirection == hw_interface::NavigationDirection::kDown)
-            {
-                display_.ShowText("Down cmd\n");
-            }
-        }
-        else if (event.type == hw_interface::InputEventType::kParameterChangeEvent)
-        {
-            if (event.parameter.id == hw_interface::ParameterChangeId::kPlaybackSpeedParameterId)
-            {
-                display_.ShowText("Play back speed\n");
-            }
-            if (event.parameter.id == hw_interface::ParameterChangeId::kPlayParameterId)
-            {
-                display_.ShowText("Play\n");
-            }
-            if (event.parameter.id == hw_interface::ParameterChangeId::kStopParameterId)
-            {
-                display_.ShowText("Stop\n");
-            }
-        }
+        // if (event.type == hw_interface::InputEventType::kNavigationEvent)
+        // {
+        //     if (event.navigationDirection == hw_interface::NavigationDirection::kUp)
+        //     {
+        //         // display_.ShowText("Up cmd\n");
+        //     }
+        //     else if (event.navigationDirection == hw_interface::NavigationDirection::kDown)
+        //     {
+        //         // display_.ShowText("Down cmd\n");
+        //     }
+        // }
+        // else if (event.type == hw_interface::InputEventType::kParameterChangeEvent)
+        // {
+        //     if (event.parameter.id == hw_interface::ParameterChangeId::kPlaybackSpeedParameterId)
+        //     {
+        //         display_.ShowText("Play back speed\n");
+        //     }
+        //     if (event.parameter.id == hw_interface::ParameterChangeId::kPlayParameterId)
+        //     {
+        //         display_.ShowText("Play\n");
+        //     }
+        //     if (event.parameter.id == hw_interface::ParameterChangeId::kStopParameterId)
+        //     {
+        //         display_.ShowText("Stop\n");
+        //     }
+        // }
 
         // Queue the raw event so the main loop can act on it (e.g. drive AudioPlayer/
         // FileManager) without UserInterface needing to know about those app-layer types.

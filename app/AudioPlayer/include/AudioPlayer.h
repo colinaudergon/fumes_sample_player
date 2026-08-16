@@ -58,6 +58,15 @@ namespace app::audio
 
         bool IsPlaying();
 
+        /// @brief Returns whether reverse playback is currently enabled (see SetReverse()).
+        bool IsReverse();
+
+        /// @brief Returns whether looping is currently enabled (see SetLooping()).
+        bool IsLooping();
+
+        /// @brief Returns whether playback is currently frozen (see Freeze()).
+        bool IsFrozen();
+
     private:
         void FillWithZeros(wav::audio_frame_t &output, size_t n_frames);
         /// @brief Resamples `input` (whose valid length is `input.n_frames`) into `output`,

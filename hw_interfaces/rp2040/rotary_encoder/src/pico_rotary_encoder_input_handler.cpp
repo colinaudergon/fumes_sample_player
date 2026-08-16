@@ -2,6 +2,7 @@
 
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
+#include "pico/time.h"
 
 #include "gpio_interrupt_dispatcher.h"
 
@@ -26,8 +27,8 @@ namespace hw_interface
         }
     } // namespace
 
-    PicoRotaryEncoderInputHandler::PicoRotaryEncoderInputHandler(uint pin_a, uint pin_b)
-        : pin_a_(pin_a), pin_b_(pin_b)
+    PicoRotaryEncoderInputHandler::PicoRotaryEncoderInputHandler(uint pin_a, uint pin_b, uint32_t debounce_us)
+        : pin_a_(pin_a), pin_b_(pin_b), debounce_us_(debounce_us)
     {
     }
 
@@ -53,34 +54,64 @@ namespace hw_interface
 
     void PicoRotaryEncoderInputHandler::HandleEdge()
     {
+
         const uint8_t new_pins = static_cast<uint8_t>((gpio_get(pin_a_) << 1) | gpio_get(pin_b_));
         const uint8_t transition = static_cast<uint8_t>((quadrature_state_ << 2) | new_pins);
 
-        // Same Gray-code transition table as the original rotary_encoder.c's handle_rotation():
-        // each case is one of the 4 valid single-step transitions for a given direction; any
-        // other combination is bounce/skipped-edge noise and is ignored.
-        NavigationDirection direction;
-        bool has_event = true;
+        int8_t step_delta = 0;
         switch (transition)
         {
         case Transition(kStateAOffBOff, kStateAOffBOn):
         case Transition(kStateAOffBOn, kStateAOnBOn):
         case Transition(kStateAOnBOn, kStateAOnBOff):
         case Transition(kStateAOnBOff, kStateAOffBOff):
-            direction = NavigationDirection::kUp;
+            step_delta = 1;
             break;
         case Transition(kStateAOffBOn, kStateAOffBOff):
         case Transition(kStateAOnBOn, kStateAOffBOn):
         case Transition(kStateAOnBOff, kStateAOnBOn):
         case Transition(kStateAOffBOff, kStateAOnBOff):
-            direction = NavigationDirection::kDown;
+            step_delta = -1;
             break;
         default:
-            has_event = false;
+            // Invalid/skipped-edge transition -- ignore for accumulation purposes, but the pin
+            // state itself is still real, so quadrature_state_ is updated below as usual.
             break;
         }
 
         quadrature_state_ = new_pins;
+        step_accumulator_ = static_cast<int8_t>(step_accumulator_ + step_delta);
+
+        if (new_pins != kRestState)
+        {
+            // Still mid-click (partway around the 4-state cycle) -- wait until the encoder
+            // settles back at the rest position before deciding whether a full detent occurred.
+            return;
+        }
+
+        // Back at rest: only report a step if the accumulated transitions since the last rest
+        // position amount to exactly one full detent's worth (+/-kStepsPerDetent) in a
+        // consistent direction. Anything else -- a partial nudge that bounced back to rest, a
+        // reversed direction mid-click, a missed/extra edge -- is discarded without emitting an
+        // event. The accumulator is reset here unconditionally so leftover noise from this cycle
+        // never bleeds into the next one.
+        const int8_t completed_steps = step_accumulator_;
+        step_accumulator_ = 0;
+
+        NavigationDirection direction;
+        bool has_event = true;
+        if (completed_steps == kStepsPerDetent)
+        {
+            direction = NavigationDirection::kUp;
+        }
+        else if (completed_steps == -kStepsPerDetent)
+        {
+            direction = NavigationDirection::kDown;
+        }
+        else
+        {
+            has_event = false;
+        }
 
         if (!has_event)
         {

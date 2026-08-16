@@ -184,6 +184,26 @@ const char *app::filesystem::FileManager::GetSelectedFilePath()
     return selected_file_path_;
 }
 
+const char *app::filesystem::FileManager::GetFileName()
+{
+    // Reuses GetSelectedFilePath()'s existing directory-scan logic rather than duplicating it --
+    // selected_file_path_ is always "<bank_path>/<filename>" (see the snprintf() above), so the
+    // name is just whatever follows the last '/'.
+    const char *full_path = GetSelectedFilePath();
+    const char *last_slash = strrchr(full_path, '/');
+    return (last_slash != nullptr) ? (last_slash + 1) : full_path;
+}
+
+size_t app::filesystem::FileManager::GetCurrentBankIndex()
+{
+    return current_bank_;
+}
+
+size_t app::filesystem::FileManager::GetCurrentFileIndex()
+{
+    return current_file_;
+}
+
 int app::filesystem::FileManager::CountBanksOnDisk()
 {
     if (disk_path_ == nullptr)

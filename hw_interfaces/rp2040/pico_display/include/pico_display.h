@@ -34,7 +34,7 @@ namespace hw_interface
             uint cs_gpio = 1;
             uint dc_gpio = 3;
             uint reset_gpio = 2;
-            uint32_t spi_baudrate_hz = 2000000;
+            uint32_t spi_baudrate_hz = 10000000;
         };
 
         PicoDisplay();
