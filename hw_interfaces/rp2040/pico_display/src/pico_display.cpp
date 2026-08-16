@@ -41,17 +41,15 @@ namespace hw_interface
         return 0;
     }
 
-    void PicoDisplay::RenderLines(const char *line1, const char *line2)
+    void PicoDisplay::RenderLine(const char *line)
     {
+        if (line == nullptr)
+        {
+            return;
+        }
         u8g2_SetFont(&u8g2_, u8g2_font_6x13_tr);
         const int line_height = u8g2_GetMaxCharHeight(&u8g2_);
-
-        u8g2_ClearBuffer(&u8g2_);
-        u8g2_DrawStr(&u8g2_, 0, line_height, line1);
-        if (line2 != nullptr)
-        {
-            u8g2_DrawStr(&u8g2_, 0, line_height * 2 + 2, line2);
-        }
+        u8g2_DrawStr(&u8g2_, 0, line_height, line);
         u8g2_SendBuffer(&u8g2_);
     }
 
@@ -62,7 +60,7 @@ namespace hw_interface
             return -1;
         }
 
-        RenderLines(text, nullptr);
+        RenderLine(text);
         return 0;
     }
 
@@ -72,17 +70,67 @@ namespace hw_interface
         {
             return -1;
         }
+        
+        (void)duration_ms; // currently unused 
 
-        char duration_line[32];
+        RenderLine(file_name);
+        return 0;
+    }
 
-        const uint32_t total_seconds = duration_ms / 1000;
-        const uint32_t minutes = total_seconds / 60;
-        const uint32_t seconds = total_seconds % 60;
+    int PicoDisplay::DisplayAudioBufferContent(float *audio_left, float *audio_right, size_t n_frames)
+    {
+        if (!initialized_ || audio_left == nullptr || audio_right == nullptr || n_frames == 0)
+        {
+            return -1;
+        }
 
-        std::snprintf(duration_line, sizeof(duration_line), "%lum%02lus", static_cast<unsigned long>(minutes),
-                      static_cast<unsigned long>(seconds));
+        // 43 pxl by 128 waveform area; pxl (0, 64-43) is the top left corner of the area.
+        constexpr uint8_t kAreaX = 0;
+        constexpr uint8_t kAreaWidth = 128;
+        constexpr uint8_t kAreaHeight = 43;
+        constexpr uint8_t kAreaY = 64 - kAreaHeight;
 
-        RenderLines(file_name, duration_line);
+        // Only clear the waveform area, not the whole buffer: draw a filled black box over
+        // just this rectangle (rather than u8g2_ClearBuffer(), which wipes everything) so other
+        // areas of the display (e.g. RenderLines()'s text) aren't disturbed by this call.
+        u8g2_SetDrawColor(&u8g2_, 0);
+        u8g2_DrawBox(&u8g2_, kAreaX, kAreaY, kAreaWidth, kAreaHeight);
+        u8g2_SetDrawColor(&u8g2_, 1);
+
+        // Combine audio_left and audio_right into a single mono buffer of size 128
+        // ((left[i] + right[i]) / 2), stepping through n_frames by 2 to fit the area's width.
+        constexpr size_t kStep = 2;
+        for (size_t x = 0; x < kAreaWidth; ++x)
+        {
+            size_t frame_index = x * kStep;
+            if (frame_index >= n_frames)
+            {
+                break;
+            }
+
+            float mono_sample = (audio_left[frame_index] + audio_right[frame_index]) / 2.0f;
+
+            // Clamp to the expected [-1, 1] range so an out-of-range sample can't map outside
+            // the waveform area below.
+            if (mono_sample > 1.0f)
+            {
+                mono_sample = 1.0f;
+            }
+            else if (mono_sample < -1.0f)
+            {
+                mono_sample = -1.0f;
+            }
+
+            // Map this value between 0 and 43, and display a point at this index. Inverted (0
+            // maps to the bottom row) since y grows downward but a positive sample should plot
+            // toward the top of the area.
+            uint8_t mapped_height = static_cast<uint8_t>((mono_sample + 1.0f) / 2.0f * (kAreaHeight - 1));
+            uint8_t y = kAreaY + (kAreaHeight - 1 - mapped_height);
+
+            u8g2_DrawPixel(&u8g2_, kAreaX + static_cast<uint8_t>(x), y);
+        }
+
+        u8g2_SendBuffer(&u8g2_);
         return 0;
     }
 

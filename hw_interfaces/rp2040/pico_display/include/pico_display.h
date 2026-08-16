@@ -54,14 +54,15 @@ namespace hw_interface
         /// beneath it.
         int DisplayFileInfo(const char *file_name, uint32_t duration_ms) override;
 
+        int DisplayAudioBufferContent(float *audio_left, float *audio_right, size_t n_frames) override;
+
     private:
         Config config_;
         u8g2_t u8g2_{};
         bool initialized_ = false;
 
-        /// @brief Clears the buffer, draws up to two stacked lines (line2 skipped if null), and
-        /// flushes to the display. Shared by ShowText()/DisplayFileInfo().
-        void RenderLines(const char *line1, const char *line2);
+        void RenderLine(const char *line);
+      
     };
 
 } // namespace hw_interface

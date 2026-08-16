@@ -64,9 +64,11 @@ int app::filesystem::FileManager::SelectBank(size_t bank_number)
     number_of_loaded_files_ = number_of_file_in_bank;
     std::printf("Bank path%s\n", current_bank_path_);
     current_bank_ = bank_number;
-    if (current_file_ > number_of_loaded_files_)
+    // Valid indices are [0, number_of_loaded_files_ - 1]; clamp to the last valid one (or 0 if
+    // the bank is empty) rather than to number_of_loaded_files_ itself, which is one past the end.
+    if (current_file_ >= number_of_loaded_files_)
     {
-        current_file_ = number_of_loaded_files_;
+        current_file_ = (number_of_loaded_files_ > 0) ? (number_of_loaded_files_ - 1) : 0;
     }
     return kFileManagerOk;
 }
@@ -78,7 +80,9 @@ size_t app::filesystem::FileManager::GetNumberOfFileInCurrentBank()
 
 int app::filesystem::FileManager::SelectFileByIndex(size_t file_index)
 {
-    if (file_index > number_of_loaded_files_)
+    // Valid indices are [0, number_of_loaded_files_ - 1]; file_index == number_of_loaded_files_
+    // is one past the end and must be rejected, not accepted.
+    if (file_index >= number_of_loaded_files_)
     {
         return kFileManagerInvalidFile;
     }
@@ -91,7 +95,7 @@ int app::filesystem::FileManager::SelectFileByIndex(size_t file_index)
 int app::filesystem::FileManager::SelectNextFile()
 {
     current_file_++;
-    if (current_file_ > number_of_loaded_files_)
+    if (current_file_ >= number_of_loaded_files_)
     {
         current_file_ = 0;
     }
@@ -102,7 +106,7 @@ int app::filesystem::FileManager::SelectNextFile()
 int app::filesystem::FileManager::SelectPreviousFile()
 {
     current_file_--;
-    if (current_file_ > number_of_loaded_files_)
+    if (current_file_ >= number_of_loaded_files_)
     {
         current_file_ = number_of_loaded_files_ - 1;
     }

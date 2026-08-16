@@ -27,6 +27,7 @@ namespace hw_interface
         void ShowWave(float *buffer, size_t buffer_size);
         int ShowText(const char* text) override;
         int DisplayFileInfo(const char* file_name, uint32_t duration_ms) override;
+        int DisplayAudioBufferContent(float *audio_left, float *audio_right, size_t n_frames) override;
     private:
         size_t display_height_;
         static constexpr char* kDefaultStyle = "\033[0m";

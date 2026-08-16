@@ -82,7 +82,7 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_display ${CMA
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(wav_file_reader wav_file_reader.cpp utils/cross_core_queues.cpp)
+add_executable(wav_file_reader wav_file_reader.cpp utils/cross_core_queues.cpp core1/core1_main.cpp)
 
 pico_set_program_name(wav_file_reader "wav_file_reader")
 pico_set_program_version(wav_file_reader "0.1")

@@ -71,6 +71,7 @@ struct PlayerStateInfo
 
 inline constexpr size_t kTelemetryFileNameLength = 64;
 
+
 // Snapshot of app::filesystem::FileManager's current selection (see FileManager::
 // GetCurrentBankIndex()/GetCurrentFileIndex()/GetNumberOfBanks()/
 // GetNumberOfFileInCurrentBank()/GetFileName()). file_name is just the file's name (e.g.
@@ -82,6 +83,7 @@ struct FileManagerStateInfo
     size_t current_file;
     size_t number_of_files_in_bank;
     char file_name[kTelemetryFileNameLength];
+    bool fault;
 };
 
 // Matches hw_interface::PicoAudioCodec::kBufferSize (private to that class -- see
@@ -132,7 +134,7 @@ public:
     void PushPlayerState(bool is_playing, bool is_reverse, bool is_looping, bool is_freezed,
                           uint32_t duration_ms, float playback_speed);
     void PushFileManagerState(size_t current_bank, size_t number_of_banks, size_t current_file,
-                               size_t number_of_files_in_bank, const char *file_name);
+                               size_t number_of_files_in_bank, const char *file_name,bool is_fault);
     // Copies buffer.buffer_left/buffer_right (up to kTelemetryBufferFrames frames) and forwards
     // them to core1. Non-blocking, same drop-if-full rationale as the other Push*() methods.
     void PushAudioBufferSnapshot(const hw_interface::audio_buffer_t &buffer);
@@ -142,3 +144,10 @@ public:
 private:
     queue_t queue_{};
 };
+
+// Global cross-core queue instances shared between core0 (wav_file_reader.cpp's main()) and
+// core1 (platform/rp2040/core1/core1_main.cpp's Core1Main()). Defined (and Init()-ed) in
+// wav_file_reader.cpp before multicore_launch_core1() launches core1, so both translation units
+// reference the same instances via these extern declarations.
+extern InputEventQueue input_event_queue_;
+extern TelemetryQueue telemetry_queue_;

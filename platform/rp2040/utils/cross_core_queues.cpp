@@ -47,7 +47,7 @@ void TelemetryQueue::PushPlayerState(bool is_playing, bool is_reverse, bool is_l
 }
 
 void TelemetryQueue::PushFileManagerState(size_t current_bank, size_t number_of_banks, size_t current_file,
-                                           size_t number_of_files_in_bank, const char *file_name)
+                                           size_t number_of_files_in_bank, const char *file_name, bool is_fault)
 {
     TelemetryMessage message{};
     message.type = TelemetryMessageType::kFileManagerState;
@@ -55,6 +55,7 @@ void TelemetryQueue::PushFileManagerState(size_t current_bank, size_t number_of_
     message.file_manager_state.number_of_banks = number_of_banks;
     message.file_manager_state.current_file = current_file;
     message.file_manager_state.number_of_files_in_bank = number_of_files_in_bank;
+    message.file_manager_state.fault = is_fault;
     std::strncpy(message.file_manager_state.file_name, file_name,
                  sizeof(message.file_manager_state.file_name) - 1);
     queue_try_add(&queue_, &message);
