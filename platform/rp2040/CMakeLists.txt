@@ -42,7 +42,6 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioPlayer ${CMAKE_CURRENT_BINARY_
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem ${CMAKE_CURRENT_BINARY_DIR}/app/FileSystem)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileManager ${CMAKE_CURRENT_BINARY_DIR}/app/FileManager)
 add_subdirectory(${WAV_FILE_READER_ROOT}/app/AudioEffects ${CMAKE_CURRENT_BINARY_DIR}/app/AudioEffects)
-add_subdirectory(${WAV_FILE_READER_ROOT}/app/UserInterface ${CMAKE_CURRENT_BINARY_DIR}/app/UserInterface)
 
 # AudioPlayer's per-callback scratch buffers default to a size matching the native/Linux build's
 # NullAudioCodec (4096 frames), which would reserve ~128KB of SRAM it's never asked to use here
@@ -117,7 +116,6 @@ target_link_libraries(wav_file_reader
     gpio_interrupts
     pico_display
     u8g2
-    UserInterface
     AudioPlayer
     AudioEffects
     -Wl,--end-group)

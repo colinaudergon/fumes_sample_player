@@ -4,12 +4,12 @@
  * file-level comment for the full core0/core1 split rationale.
  *
  * Core1 (launched via multicore_launch_core1(Core1Main) from wav_file_reader.cpp's main(), the
- * boot core/core0) owns everything UI-related: PicoDisplay, PicoRotaryEncoderInputHandler, and
- * UserInterface. Neither the u8g2 display driver nor the rotary encoder's GPIO IRQ registration
- * is safe to touch from both cores at once (GPIO IRQ callback registration in particular is
- * per-core), so all three objects are defined here rather than in wav_file_reader.cpp, and
- * core0 never references them directly -- it only exchanges messages with Core1Main() through
- * the InputEventQueue/TelemetryQueue globals declared in utils/cross_core_queues.h (defined and
+ * boot core/core0) owns everything UI-related: PicoDisplay and PicoRotaryEncoderInputHandler.
+ * Neither the u8g2 display driver nor the rotary encoder's GPIO IRQ registration is safe to
+ * touch from both cores at once (GPIO IRQ callback registration in particular is per-core), so
+ * both objects are defined here rather than in wav_file_reader.cpp, and core0 never references
+ * them directly -- it only exchanges messages with Core1Main() through the
+ * InputEventQueue/TelemetryQueue globals declared in utils/cross_core_queues.h (defined and
  * Init()-ed in wav_file_reader.cpp before core1 is launched).
  */
 
@@ -17,7 +17,6 @@
 
 #include "pico_display.h"
 #include "pico_rotary_encoder_input_handler.h"
-#include "UserInterface.h"
 #include "utils/cross_core_queues.h"
 
 #include "core1_main.h"
@@ -31,7 +30,6 @@ namespace
 {
     hw_interface::PicoDisplay display;
     hw_interface::PicoRotaryEncoderInputHandler rotary_encoder(kEncoderPinA, kEncoderPinB);
-    app::ui::UserInterface ui(rotary_encoder, display);
 } // namespace
 
 void Core1Main()
@@ -64,15 +62,13 @@ void Core1Main()
 
     while (true)
     {
-        // Polls the rotary encoder via IInputHandler, queuing any detected step as a kNavigationEvent
-        ui.ProcessUi();
-
-        // Forwards each command UserInterface queued internally to core0 instead of acting on
-        // it here: FileManager/AudioPlayer are core0-owned (see wav_file_reader.cpp).
-        hw_interface::InputEvent command;
-        while (ui.PopCommand(command))
+        // Polls the rotary encoder directly, queuing any detected step as a kNavigationEvent
+        // for core0 to act on (FileManager/AudioPlayer are core0-owned -- see
+        // wav_file_reader.cpp).
+        hw_interface::InputEvent event;
+        if (rotary_encoder.PollEvent(event))
         {
-            input_event_queue_.TryPush(command);
+            input_event_queue_.TryPush(event);
         }
 
         // Drains telemetry pushed by core0 (see TelemetryQueue's Push*() methods). Note

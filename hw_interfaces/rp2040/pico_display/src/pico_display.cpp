@@ -53,6 +53,13 @@ namespace hw_interface
         u8g2_SendBuffer(&u8g2_);
     }
 
+    void PicoDisplay::ClearArea(const DisplayArea &area)
+    {
+        u8g2_SetDrawColor(&u8g2_, kUg8Black);
+        u8g2_DrawBox(&u8g2_, area.x_pos, area.y_pos, area.width, area.height);
+        u8g2_SetDrawColor(&u8g2_, kUg8White);
+    }
+
     int PicoDisplay::ShowText(const char *text)
     {
         if (!initialized_ || text == nullptr)
@@ -70,8 +77,8 @@ namespace hw_interface
         {
             return -1;
         }
-        
-        (void)duration_ms; // currently unused 
+
+        (void)duration_ms; // currently unused
 
         RenderLine(file_name);
         return 0;
@@ -85,22 +92,13 @@ namespace hw_interface
         }
 
         // 43 pxl by 128 waveform area; pxl (0, 64-43) is the top left corner of the area.
-        constexpr uint8_t kAreaX = 0;
-        constexpr uint8_t kAreaWidth = 128;
-        constexpr uint8_t kAreaHeight = 43;
-        constexpr uint8_t kAreaY = 64 - kAreaHeight;
 
-        // Only clear the waveform area, not the whole buffer: draw a filled black box over
-        // just this rectangle (rather than u8g2_ClearBuffer(), which wipes everything) so other
-        // areas of the display (e.g. RenderLines()'s text) aren't disturbed by this call.
-        u8g2_SetDrawColor(&u8g2_, 0);
-        u8g2_DrawBox(&u8g2_, kAreaX, kAreaY, kAreaWidth, kAreaHeight);
-        u8g2_SetDrawColor(&u8g2_, 1);
+        ClearArea(kLiveViewArea);
 
         // Combine audio_left and audio_right into a single mono buffer of size 128
         // ((left[i] + right[i]) / 2), stepping through n_frames by 2 to fit the area's width.
         constexpr size_t kStep = 2;
-        for (size_t x = 0; x < kAreaWidth; ++x)
+        for (size_t x = 0; x < kLiveViewArea.width; ++x)
         {
             size_t frame_index = x * kStep;
             if (frame_index >= n_frames)
@@ -121,13 +119,10 @@ namespace hw_interface
                 mono_sample = -1.0f;
             }
 
-            // Map this value between 0 and 43, and display a point at this index. Inverted (0
-            // maps to the bottom row) since y grows downward but a positive sample should plot
-            // toward the top of the area.
-            uint8_t mapped_height = static_cast<uint8_t>((mono_sample + 1.0f) / 2.0f * (kAreaHeight - 1));
-            uint8_t y = kAreaY + (kAreaHeight - 1 - mapped_height);
+            uint8_t mapped_height = static_cast<uint8_t>((mono_sample + 1.0f) / 2.0f * (kLiveViewArea.height- 1));
+            uint8_t y = kLiveViewArea.y_pos + (kLiveViewArea.height - 1 - mapped_height);
 
-            u8g2_DrawPixel(&u8g2_, kAreaX + static_cast<uint8_t>(x), y);
+            u8g2_DrawPixel(&u8g2_, kLiveViewArea.x_pos + static_cast<uint8_t>(x), y);
         }
 
         u8g2_SendBuffer(&u8g2_);

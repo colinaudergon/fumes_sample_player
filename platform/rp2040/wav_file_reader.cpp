@@ -11,7 +11,7 @@
  * owns everything SD-card/audio-related (FileManager, AudioPlayer, PicoAudioCodec/
  * ServiceRefill()) so it's never blocked by UI work; core1 (Core1Main(), defined in
  * platform/rp2040/core1/core1_main.cpp, launched from main() via multicore_launch_core1())
- * owns everything UI-related (PicoDisplay, PicoRotaryEncoderInputHandler, UserInterface). Neither
+ * owns everything UI-related (PicoDisplay, PicoRotaryEncoderInputHandler). Neither
  * FatFs/SD nor the u8g2 display driver is safe to touch from both cores at once, so the two
  * sides never call into each other's owned objects directly -- they only exchange messages
  * through the InputEventQueue/TelemetryQueue wrappers (see utils/cross_core_queues.h) around
@@ -97,7 +97,7 @@ int main()
     input_event_queue_.Init(kInputEventQueueCapacity);
     telemetry_queue_.Init(kTelemetryQueueCapacity);
 
-    // Core1 owns PicoDisplay/PicoRotaryEncoderInputHandler/UserInterface from here on -- see the
+    // Core1 owns PicoDisplay/PicoRotaryEncoderInputHandler from here on -- see the
     // file-level comment for why core0 never touches them directly.
     multicore_launch_core1(Core1Main);
 

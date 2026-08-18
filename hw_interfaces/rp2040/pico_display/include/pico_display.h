@@ -20,9 +20,42 @@
 namespace hw_interface
 {
 
+    typedef uint8_t ug8_color_t;
+
     class PicoDisplay : public IDisplay
     {
     public:
+        /// @brief Identifies each DisplayArea below; compare against DisplayArea::id (e.g. to
+        /// tell which area last received an input event, or to route a redraw to a specific
+        /// area) instead of a raw/manually-assigned integer.
+        enum class DisplayAreaId : uint8_t
+        {
+            kScreen = 0,
+            kLivePlayMenuArea,
+            kLiveViewArea,
+            kInfoArea,
+            kFileSelectMenuArea,
+        };
+
+        enum class DisplayAreaIds : uint8_t
+        {
+            kNone,
+            kRootScreen,
+            kLiveViewMenu,
+
+        };
+
+        struct DisplayArea
+        {
+            void *parent;
+            size_t x_pos;
+            size_t y_pos;
+
+            size_t width;
+            size_t height;
+            DisplayAreaId id;
+        };
+
         /// @brief GPIO/SPI configuration for the display. Defaults use SPI1 on GPIO26 (SCK) /
         /// GPIO27 (MOSI), with CS/DC/RESET as plain GPIO outputs on GPIO22/21/20 -- chosen to
         /// avoid the GPIOs already claimed elsewhere in this proje ct (status LED: GPIO0; SD
@@ -62,7 +95,60 @@ namespace hw_interface
         bool initialized_ = false;
 
         void RenderLine(const char *line);
-      
+
+        void ClearArea(const DisplayArea &area);
+
+        static constexpr size_t kScreenWidth = 128;
+        static constexpr size_t kScreenHeight = 64;
+
+        static constexpr DisplayArea kScreen = {
+            .parent = nullptr,
+            .x_pos = 0,
+            .y_pos = 0,
+            .width = kScreenWidth,
+            .height = kScreenHeight,
+            .id = DisplayAreaId::kScreen};
+
+        static constexpr DisplayArea kLivePlayMenuArea =
+            {
+                .parent = const_cast<void *>(static_cast<const void *>(&kScreen)),
+                .x_pos = 0,
+                .y_pos = 0,
+                .width = kScreenWidth,
+                .height = kScreenHeight,
+                .id = DisplayAreaId::kLivePlayMenuArea,
+            };
+
+        static constexpr uint8_t kLiveViewAreaHeight = 43;
+        static constexpr uint8_t kLiveViewAreaY = kScreenHeight - kLiveViewAreaHeight;
+
+        static constexpr DisplayArea kLiveViewArea = {
+            .parent = const_cast<void *>(static_cast<const void *>(&kScreen)),
+            .x_pos = 0,
+            .y_pos = kLiveViewAreaY,
+            .width = kScreenWidth,
+            .height = kLiveViewAreaHeight,
+            .id = DisplayAreaId::kLiveViewArea};
+
+        static constexpr DisplayArea kInfoArea = {
+            .parent = const_cast<void *>(static_cast<const void *>(&kScreen)),
+            .x_pos = 0,
+            .y_pos = 0,
+            .width = kScreenWidth,
+            .height = kScreenHeight - kLiveViewAreaHeight,
+            .id = DisplayAreaId::kInfoArea};
+
+        static constexpr DisplayArea kFileSelectMenuArea = {
+            .parent = const_cast<void *>(static_cast<const void *>(&kScreen)),
+            .x_pos = 0,
+            .y_pos = 0,
+            .width = kScreenWidth,
+            .height = kScreenHeight,
+            .id = DisplayAreaId::kFileSelectMenuArea,
+        };
+
+        static constexpr ug8_color_t kUg8Black = 0;
+        static constexpr ug8_color_t kUg8White = 1;
     };
 
 } // namespace hw_interface
