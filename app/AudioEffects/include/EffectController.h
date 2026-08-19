@@ -38,6 +38,6 @@ namespace app::audio
         CloudsReverb cloud_reverb_;
         BitCrusher bit_crusher_;
         static constexpr size_t kNumberOfEffects = 4;
-        size_t selected_effect_{static_cast<size_t>(EffectId::kDelay)};
+        size_t selected_effect_{static_cast<size_t>(EffectId::kCloudsReverb)};
     };
 }

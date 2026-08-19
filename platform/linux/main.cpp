@@ -19,18 +19,25 @@
 #include "NullAudioCodec.h"
 #include "PosixBlockDevice.h"
 #include "ConsoleInputHandler.h"
+#include "QtGui.h"
 #include "Display.h"
 
 
 
 static constexpr size_t kBufferSize = 4096;
+// Number of columns to downsample the loaded file's waveform into for the Qt draw area (see
+// AudioPlayer::GetAudioDataToDisplay()'s "n_frames = display width" contract).
+static constexpr size_t kWaveformDisplayWidth = 400;
 app::filesystem::FileManager file_manager;
 app::audio::AudioPlayer audio_player;
 hw_interface::NullAudioCodec audio_codec;
 
-hw_interface::ConsoleInputHandler console_input;
-hw_interface::Display display;
-app::audio::EffectController effect_controller;
+// ConsoleInputHandler/Display remain available (see hw_interfaces/linux/user_input and
+// hw_interfaces/linux/display) but are no longer wired up here -- QtGui is the active
+// IInputHandler + IDisplay for the native/Linux build (controls and waveform draw area share one
+// window).
+hw_interface::QtGui qt_gui;
+// app::audio::EffectController effect_controller;
 
 void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio_buffer_t *buffer_1)
 {
@@ -50,9 +57,10 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
 int main()
 {
 
-    // Puts stdin in non-blocking mode so the input-polling loop below never stalls waiting on a
-    // line of console input.
-    console_input.Init();
+    // Constructs and shows the Qt window (controls + status label + waveform draw area); also
+    // drives (in the polling loop below) any pending button/slider signals via
+    // QCoreApplication::processEvents().
+    qt_gui.Init();
 
     // Physical drive 0 (see app/FileSystem/include/IBlockDevice.h): a FAT volume backed by a
     // plain file on the host filesystem instead of a real SD/USB device.
@@ -116,7 +124,7 @@ int main()
     while (1)
     {
         hw_interface::InputEvent command;
-        if (console_input.PollEvent(command))
+        if (qt_gui.PollEvent(command))
         {
             if (command.type == hw_interface::InputEventType::kParameterChangeEvent)
             {
@@ -129,12 +137,21 @@ int main()
                         const char *audio_file = audio_player.GetAudioFile();
                         if (audio_file == nullptr)
                         {
-                            display.ShowText("file: unknown\n");
+                            qt_gui.ShowText("file: unknown\n");
                         }
                         else
                         {
-                            display.DisplayFileInfo(audio_file, audio_player.GetDurationMs());
+                            qt_gui.DisplayFileInfo(audio_file, audio_player.GetDurationMs());
                         }
+
+                        // GetAudioDataToDisplay() may only be called while is_playing_ is false,
+                        // so this must happen after LoadFile() but before Start().
+                        uint16_t waveform[kWaveformDisplayWidth];
+                        audio_player.GetAudioDataToDisplay(waveform, kWaveformDisplayWidth);
+                        qt_gui.SetWaveformData(waveform, kWaveformDisplayWidth);
+                        qt_gui.SetMarkerPositions(audio_player.GetStartMarkerMs(), audio_player.GetStopMarkerMs(),
+                                                   audio_player.GetDurationMs());
+
                         audio_player.Start();
                     }
                 }
@@ -165,11 +182,15 @@ int main()
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStartMarkerParameterId)
                 {
                     audio_player.SetStartMarker(static_cast<uint64_t>(command.parameter.delta));
+                    qt_gui.SetMarkerPositions(audio_player.GetStartMarkerMs(), audio_player.GetStopMarkerMs(),
+                                               audio_player.GetDurationMs());
                     std::printf("Start marker set to %.0f ms\n", command.parameter.delta);
                 }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStopMarkerParameterId)
                 {
                     audio_player.SetStopMarker(static_cast<uint64_t>(command.parameter.delta));
+                    qt_gui.SetMarkerPositions(audio_player.GetStartMarkerMs(), audio_player.GetStopMarkerMs(),
+                                               audio_player.GetDurationMs());
                     std::printf("Stop marker set to %.0f ms\n", command.parameter.delta);
                 }
                 // kEffectParameterId
@@ -189,6 +210,9 @@ int main()
                 }
             }
         }
+
+        // Keeps the waveform draw area's playhead line advancing in sync with playback.
+        qt_gui.SetPlayheadPosition(audio_player.GetPlayheadMs(), audio_player.GetDurationMs());
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }

@@ -44,6 +44,7 @@ target_link_libraries(sample_player PRIVATE
     posix_block_device
     FatFsCore
     ConsoleInputHandler
+    QtGui
     -Wl,--end-group
 )
 

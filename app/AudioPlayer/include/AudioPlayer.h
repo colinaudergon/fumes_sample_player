@@ -43,6 +43,11 @@ namespace app::audio
         size_t GetStartMarker();
         size_t GetStopMarker();
 
+        /// @brief Same as GetStartMarker()/GetStopMarker(), converted to milliseconds using the
+        /// loaded file's sample rate. Returns 0 if no file has been loaded yet.
+        uint32_t GetStartMarkerMs();
+        uint32_t GetStopMarkerMs();
+
         int Start();
         int Stop();
 
@@ -79,6 +84,20 @@ namespace app::audio
         /// @brief Returns the path passed to the most recent successful LoadFile() call, or an
         /// empty string if no file has been loaded yet.
         const char *GetAudioFile();
+
+        /// @brief Fills `data` with `n_frames` downsampled amplitude values (one per display
+        /// column) covering the whole loaded file's data chunk, for waveform display. Each value
+        /// is the peak absolute amplitude, within that column's frame range, of a locally
+        /// computed mono mixdown (average of L/R) of the source, scaled to the full uint16_t
+        /// range. Only callable while playback is stopped (is_playing_ == false), since it reuses
+        /// the time_adjust_source_l_/r_ scratch buffers that Read() uses while streaming. The
+        /// file cursor is restored to the start of the data chunk (LoadFile()'s postcondition)
+        /// before returning, regardless of the current playback position.
+        /// @param data Destination array; must have room for exactly `n_frames` values.
+        /// @param n_frames Number of columns to fill (typically the display width in pixels).
+        /// @return 0 on success, -1 if no file is loaded, playback is active, or the arguments
+        /// are invalid.
+        int GetAudioDataToDisplay(uint16_t *data, size_t n_frames);
 
         bool IsPlaying();
 

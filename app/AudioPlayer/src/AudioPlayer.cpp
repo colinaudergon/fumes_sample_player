@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cmath>
+#include <limits>
 
 #include <cstdio>
 int app::audio::AudioPlayer::Init(AudioPlayerConfiguration &configuration)
@@ -172,6 +173,26 @@ size_t app::audio::AudioPlayer::GetStartMarker()
 size_t app::audio::AudioPlayer::GetStopMarker()
 {
     return stop_marker_;
+}
+
+uint32_t app::audio::AudioPlayer::GetStartMarkerMs()
+{
+    const int sample_rate = wav_file_handler_.GetSampleRate();
+    if (sample_rate == 0)
+    {
+        return 0;
+    }
+    return static_cast<uint32_t>((static_cast<uint64_t>(start_marker_) * kMillisMultiplier) / static_cast<uint64_t>(sample_rate));
+}
+
+uint32_t app::audio::AudioPlayer::GetStopMarkerMs()
+{
+    const int sample_rate = wav_file_handler_.GetSampleRate();
+    if (sample_rate == 0)
+    {
+        return 0;
+    }
+    return static_cast<uint32_t>((static_cast<uint64_t>(stop_marker_) * kMillisMultiplier) / static_cast<uint64_t>(sample_rate));
 }
 
 void app::audio::AudioPlayer::FillWithZeros(wav::audio_frame_t &output, size_t n_frames)
@@ -588,6 +609,78 @@ uint32_t app::audio::AudioPlayer::GetPlayheadMs()
 const char *app::audio::AudioPlayer::GetAudioFile()
 {
     return loaded_file_path_;
+}
+
+int app::audio::AudioPlayer::GetAudioDataToDisplay(uint16_t *data, size_t n_frames)
+{
+    // Only callable while nothing is streaming through Read(): lets this reuse the existing
+    // time_adjust_source_l_/r_ scratch buffers below instead of needing its own.
+    if (data == nullptr || n_frames == 0 || file_ == nullptr || frame_bytes_ == 0 || is_playing_)
+    {
+        return -1;
+    }
+
+    const size_t total_frames = GetTotalFrames();
+    if (total_frames == 0)
+    {
+        return -1;
+    }
+
+    file_system_.Lseek(file_, kWavHeaderSize);
+
+    size_t frames_consumed = 0;
+    for (size_t column = 0; column < n_frames; column++)
+    {
+        // Distribute total_frames evenly across n_frames columns; the last column absorbs any
+        // remainder from the integer division.
+        const size_t bucket_end = ((column + 1) * total_frames) / n_frames;
+        size_t bucket_frames_remaining = (bucket_end > frames_consumed) ? (bucket_end - frames_consumed) : 0;
+
+        float peak = 0.0f;
+        while (bucket_frames_remaining > 0)
+        {
+            const size_t chunk_frames = std::min(bucket_frames_remaining, kMaxReadFrames);
+            const size_t bytes_to_read = chunk_frames * frame_bytes_;
+
+            size_t bytes_read = 0;
+            FsResult read_result = file_system_.Read(file_, read_scratch_buffer_, bytes_to_read, &bytes_read);
+            if (read_result != FsResult::kOk || bytes_read == 0)
+            {
+                break; // short read/error: nothing more to scan.
+            }
+
+            wav::audio_frame_t chunk_output{time_adjust_source_l_, time_adjust_source_r_, 0};
+            int converted = wav_file_handler_.ReadData(read_scratch_buffer_, bytes_read, chunk_output, chunk_frames);
+            if (converted <= 0)
+            {
+                break;
+            }
+
+            for (int i = 0; i < converted; i++)
+            {
+                // Mix down to mono locally: the display data is monophonic, one value per
+                // column, regardless of how many channels the source file has.
+                const float mono_sample = 0.5f * (time_adjust_source_l_[i] + time_adjust_source_r_[i]);
+                peak = std::max(peak, std::fabs(mono_sample));
+            }
+
+            frames_consumed += static_cast<size_t>(converted);
+            bucket_frames_remaining -= static_cast<size_t>(converted);
+
+            if (static_cast<size_t>(converted) < chunk_frames)
+            {
+                break; // short read: end of data chunk reached partway through this bucket.
+            }
+        }
+
+        data[column] = static_cast<uint16_t>(std::min(peak, 1.0f) * static_cast<float>(std::numeric_limits<uint16_t>::max()));
+    }
+
+    // Restore the file cursor to LoadFile()'s postcondition (start of the data chunk), so
+    // playback (which always re-syncs the cursor from current_frame_index_ before reading, see
+    // SeekStartChunk()) is unaffected by this scan.
+    file_system_.Lseek(file_, kWavHeaderSize);
+    return 0;
 }
 
 bool app::audio::AudioPlayer::IsPlaying()
