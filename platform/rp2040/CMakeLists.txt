@@ -59,9 +59,29 @@ add_subdirectory(${WAV_FILE_READER_ROOT}/app/FileSystem/hw_layer/SdInterface ${C
 add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_adc ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pico_adc)
 add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pwm_audio_codec ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pwm_audio_codec)
 
+# RP2040-only user-input sources (ported from gv_lib's pico_gv_drivers): gpio_interrupts is a
+# shared single-callback GPIO IRQ dispatcher, rotary_encoder is a hw_interface::IInputHandler
+# implementation built on top of it.
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/gpio_interrupts ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/gpio_interrupts)
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/rotary_encoder ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/rotary_encoder)
+
+# u8g2 (vendored as a git submodule at lib/u8g2) drives PicoDisplay's SSD1306 SPI OLED; RP2040-
+# only, depends on Pico SDK hardware_spi/hardware_gpio.
+add_subdirectory(${WAV_FILE_READER_ROOT}/lib/u8g2 ${CMAKE_CURRENT_BINARY_DIR}/lib/u8g2)
+
+# u8g2's vendored CMakeLists.txt doesn't link pico_stdlib, so it never inherits the Pico SDK's
+# global -ffunction-sections/-fdata-sections compile options (set via pico_standard_link's
+# INTERFACE target, which is only pulled in by libraries that link pico_stdlib). Without them,
+# --gc-sections has nothing to strip: u8g2_fonts.c bundles EVERY built-in font (hundreds) as one
+# translation unit, so linking in a single font (e.g. u8g2_font_6x13_tr, used by PicoDisplay)
+# would otherwise pull in the whole ~14MB file and blow the RP2040's 2MB flash budget.
+target_compile_options(u8g2 PRIVATE -ffunction-sections -fdata-sections)
+
+add_subdirectory(${WAV_FILE_READER_ROOT}/hw_interfaces/rp2040/pico_display ${CMAKE_CURRENT_BINARY_DIR}/hw_interfaces/rp2040/pico_display)
+
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(wav_file_reader wav_file_reader.cpp )
+add_executable(wav_file_reader wav_file_reader.cpp utils/cross_core_queues.cpp core1/core1_main.cpp)
 
 pico_set_program_name(wav_file_reader "wav_file_reader")
 pico_set_program_version(wav_file_reader "0.1")
@@ -82,6 +102,7 @@ pico_enable_stdio_usb(wav_file_reader 1)
 # ld re-scan the group until all references resolve, regardless of archive order.
 target_link_libraries(wav_file_reader
     pico_stdlib
+    pico_multicore
     hardware_clocks
     -Wl,--start-group
     FileSystem
@@ -91,6 +112,10 @@ target_link_libraries(wav_file_reader
     FatFsCore
     pico_adc
     pwm_audio_codec
+    rotary_encoder
+    gpio_interrupts
+    pico_display
+    u8g2
     AudioPlayer
     AudioEffects
     -Wl,--end-group)
@@ -101,4 +126,10 @@ target_include_directories(wav_file_reader PRIVATE
 )
 
 pico_add_extra_outputs(wav_file_reader)
+
+# Report FLASH/RAM usage (and whether it fits within the RP2040's memory regions, as defined by
+# the Pico SDK linker script) at the end of every link. -Wl,--print-memory-usage is a standard
+# GNU ld feature; if the binary doesn't actually fit, the linker already fails the build outright,
+# so this is purely an informational summary for every successful build.
+target_link_options(wav_file_reader PRIVATE -Wl,--print-memory-usage)
 

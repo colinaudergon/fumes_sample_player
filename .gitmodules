@@ -7,3 +7,6 @@
 [submodule "lib/no-OS-FatFS-SD-SPI-RPi-Pico"]
 	path = lib/no-OS-FatFS-SD-SPI-RPi-Pico
 	url = https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico.git
+[submodule "lib/u8g2"]
+	path = lib/u8g2
+	url = https://github.com/olikraus/u8g2.git

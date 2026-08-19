@@ -426,6 +426,21 @@ bool app::audio::AudioPlayer::IsPlaying()
     return is_playing_;
 }
 
+bool app::audio::AudioPlayer::IsReverse()
+{
+    return is_reverse_;
+}
+
+bool app::audio::AudioPlayer::IsLooping()
+{
+    return is_looping_;
+}
+
+bool app::audio::AudioPlayer::IsFrozen()
+{
+    return is_freezed_;
+}
+
 app::audio::AudioPlayer::~AudioPlayer()
 {
     if (file_ != nullptr)

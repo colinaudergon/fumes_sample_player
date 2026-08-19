@@ -29,6 +29,15 @@ namespace app::filesystem
         /// @brief Returns the full path (bank path + filename) of the currently selected file.
         /// @return The full file path, or an empty string if no file is currently selected/valid.
         const char *GetSelectedFilePath();
+        /// @brief Returns just the currently selected file's name (e.g. "kick.wav"), without the
+        /// bank path prefix GetSelectedFilePath() includes.
+        /// @return The file name, or an empty string if no file is currently selected/valid.
+        const char *GetFileName();
+        /// @brief Returns the index of the currently selected bank (see SelectBank()).
+        size_t GetCurrentBankIndex();
+        /// @brief Returns the index of the currently selected file within the current bank (see
+        /// SelectFileByIndex()/SelectNextFile()/SelectPreviousFile()).
+        size_t GetCurrentFileIndex();
     private:
         app::IFileSystem &file_system_;
         static constexpr size_t kNumMaxBank = 64;

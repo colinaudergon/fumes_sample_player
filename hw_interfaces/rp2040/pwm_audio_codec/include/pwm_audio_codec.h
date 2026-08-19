@@ -56,7 +56,7 @@ namespace hw_interface
     private:
         // Two adjacent-numbered placeholder GPIOs chosen so they land on different PWM slices
         // (RP2040 maps gpio -> slice as (gpio >> 1) & 7, so pins 2 apart are always on different
-        // slices) -- easy to change later.
+        // slices)
         static constexpr uint kGpioOutputLeft = 10;
         static constexpr uint kGpioOutputRight = 12;
         static constexpr uint kRepetitionRate = 4;

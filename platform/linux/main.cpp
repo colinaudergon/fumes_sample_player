@@ -19,7 +19,6 @@
 #include "NullAudioCodec.h"
 #include "PosixBlockDevice.h"
 #include "ConsoleInputHandler.h"
-#include "UserInterface.h"
 #include "Display.h"
 
 
@@ -31,7 +30,6 @@ hw_interface::NullAudioCodec audio_codec;
 
 hw_interface::ConsoleInputHandler console_input;
 hw_interface::Display display;
-app::ui::UserInterface ui(console_input, display);
 app::audio::EffectController effect_controller;
 
 void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio_buffer_t *buffer_1)
@@ -52,8 +50,8 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
 int main()
 {
 
-    // Puts stdin in non-blocking mode so ui.ProcessUi()'s polling loop below never stalls
-    // waiting on a line of console input.
+    // Puts stdin in non-blocking mode so the input-polling loop below never stalls waiting on a
+    // line of console input.
     console_input.Init();
 
     // Physical drive 0 (see app/FileSystem/include/IBlockDevice.h): a FAT volume backed by a
@@ -117,10 +115,8 @@ int main()
 
     while (1)
     {
-        ui.ProcessUi();
-
         hw_interface::InputEvent command;
-        while (ui.PopCommand(command))
+        if (console_input.PollEvent(command))
         {
             if (command.type == hw_interface::InputEventType::kParameterChangeEvent)
             {
@@ -130,7 +126,15 @@ int main()
                     if (file_path[0] != '\0')
                     {
                         audio_player.LoadFile(file_path);
-                        ui.DisplayFileInformation(audio_player.GetAudioFile(), audio_player.GetDurationMs());
+                        const char *audio_file = audio_player.GetAudioFile();
+                        if (audio_file == nullptr)
+                        {
+                            display.ShowText("file: unknown\n");
+                        }
+                        else
+                        {
+                            display.DisplayFileInfo(audio_file, audio_player.GetDurationMs());
+                        }
                         audio_player.Start();
                     }
                 }

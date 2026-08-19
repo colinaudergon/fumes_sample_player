@@ -22,7 +22,6 @@ add_subdirectory(app/AudioPlayer)
 add_subdirectory(app/AudioEffects)
 add_subdirectory(app/FileSystem)
 add_subdirectory(app/FileManager)
-add_subdirectory(app/UserInterface)
 
 add_subdirectory(hw_interfaces/linux)
 
@@ -40,7 +39,6 @@ target_link_libraries(sample_player PRIVATE
     AudioEffects
     FileSystem
     FileManager
-    UserInterface
     null_audio_codec
     Display
     posix_block_device

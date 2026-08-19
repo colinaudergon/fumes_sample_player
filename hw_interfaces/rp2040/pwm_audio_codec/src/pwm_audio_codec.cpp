@@ -205,6 +205,16 @@ namespace hw_interface
         dma_hw->ch[channel_l_.sample_dma_chan].al1_read_addr = reinterpret_cast<uintptr_t>(channel_l_.pwm_buffer_0);
         dma_hw->ch[channel_r_.sample_dma_chan].al1_read_addr = reinterpret_cast<uintptr_t>(channel_r_.pwm_buffer_0);
 
+        // Both buffer halves were just primed with fresh data above (or on the very first
+        // Start()), so there is nothing left to refill yet -- clear any refill_pending_ left set
+        // from before a Stop()/Start() round-trip (e.g. AcknoledgeIrq() firing right before a
+        // caller-driven Stop() during a file switch, with no ServiceRefill() call in between to
+        // clear it). Without this, the very first AcknoledgeIrq() after restarting would see the
+        // stale flag still set and count it as a missed refill (see GetMissedRefillCount())
+        // even though no real underrun occurred -- this is exactly what caused every file
+        // switch after the first to report a spurious missed-refill increment.
+        refill_pending_ = false;
+
         irq_set_enabled(DMA_IRQ_1, true);
         // Kick things off with both trigger DMA channels, back-to-back so their wrap-boundary
         // timing stays aligned.

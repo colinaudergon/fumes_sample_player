@@ -66,3 +66,13 @@ int hw_interface::Display::DisplayFileInfo(const char *file_name, uint32_t durat
 
     return 0;
 }
+
+// Matches PicoDisplay::DisplayAudioBufferContent -- both are placeholder stubs for now;
+// no rendering (waveform/VU meter) has been wired up to this callback on either platform yet.
+int hw_interface::Display::DisplayAudioBufferContent(float *audio_left, float *audio_right, size_t n_frames)
+{
+    (void)audio_left;
+    (void)audio_right;
+    (void)n_frames;
+    return 0;
+}
