@@ -250,95 +250,11 @@ source, or another console command):
    starts — e.g. `ConsoleInputHandler::Init()` must run before `PollEvent()` or console reads can
    block (see `platform/linux/main.cpp`).
 
-## Resampling logic
+## AudioPlayer internals
 
-`AudioPlayer::Read()` (`app/AudioPlayer/src/AudioPlayer.cpp`) is the only place
-`SetPlaybackSpeed()` actually takes effect. Rather than reading more/fewer raw frames directly
-into the caller-supplied output buffer — which would overflow it when speed > 1.0, or leave it
-partially stale when speed < 1.0 — `Read()` always produces exactly `n_frames` output frames:
-
-1. **Compute how many raw source frames are needed.** `n_frames_out = n_frames *
-   playback_speed_` (frames at the file's native sample rate), clamped to the fixed-size
-   pre-resample scratch buffers' capacity (`kMaxSourceFrames`) as a last-resort safety net.
-2. **Stream + convert those raw frames into scratch buffers.** Raw bytes are read from the open
-   WAV file in bounded chunks (`kMaxReadFrames` at a time) and converted by
-   `WavFileHandler::ReadData()` straight into `time_adjust_source_l_`/`time_adjust_source_r_` —
-   the output buffer isn't touched yet.
-3. **Resample once, in one shot.** `AdjustTime()` is called with the actual number of source
-   frames that were read (`total_frames_read`, which can be less than `n_frames_out` on a short
-   read/EOF) and the target output count (`n_frames`). For every output frame, it maps that
-   frame to a fractional position within the source range and calls `ApplyInterpolation()`
-   (linear interpolation between two adjacent source samples) once per channel, writing directly
-   into `output.audio_l`/`output.audio_r`.
-
-If no source data could be read at all (e.g. EOF hit immediately, or nothing is currently
-playing), `Read()` skips straight to filling `output` with silence via `FillWithZeros()`.
-
-### Flowchart
-
-```mermaid
-flowchart TD
-    A["Read(output, n_frames)"] --> B{"output.audio_l/r null?"}
-    B -- yes --> Z1["return -1, output.n_frames = 0"]
-    B -- no --> C["n_frames_out = n_frames * playback_speed_
-clamped to kMaxSourceFrames"]
-    C --> D{"frame_bytes == 0?"}
-    D -- yes --> Z2["return -1, output.n_frames = 0"]
-    D -- no --> E{"file_ == nullptr
-OR EOF OR not playing?"}
-    E -- yes --> F["FillWithZeros(output, n_frames)"]
-    F --> Z3["return n_frames"]
-    E -- no --> G["Read up to kMaxReadFrames raw frames
-into read_scratch_buffer_"]
-    G --> H["WavFileHandler::ReadData() converts raw bytes
-into time_adjust_source_l_/r_"]
-    H --> I{"frames_remaining > 0
-AND no short read/error?"}
-    I -- yes --> G
-    I -- no --> J{"total_frames_read == 0?"}
-    J -- yes --> K["is_playing_ = false
-FillWithZeros(output, n_frames)"]
-    K --> Z4["return n_frames"]
-    J -- no --> L["AdjustTime(source[total_frames_read], output, n_frames)"]
-    L --> M["For each output sample:
-compute percent + src_sample_float,
-ApplyInterpolation() on audio_l and audio_r"]
-    M --> N["output.n_frames = n_frames"]
-    N --> Z5["return output.n_frames"]
-```
-
-### Sequence diagram
-
-```mermaid
-sequenceDiagram
-    participant Codec as IAudioCodec (fill callback)
-    participant Player as AudioPlayer::Read
-    participant FS as IFileSystem
-    participant Wav as WavFileHandler
-    participant Adj as AdjustTime / ApplyInterpolation
-
-    Codec->>Player: Read(output, n_frames)
-    Player->>Player: n_frames_out = n_frames * playback_speed_
-
-    loop until n_frames_out raw frames read (kMaxReadFrames per chunk)
-        Player->>FS: Read(file_, read_scratch_buffer_, bytes_to_read)
-        FS-->>Player: bytes_read
-        Player->>Wav: ReadData(read_scratch_buffer_, bytes_read, chunk_output, chunk_frames)
-        Wav-->>Player: converted frames (written into time_adjust_source_l_/r_)
-    end
-
-    Player->>Adj: AdjustTime(source[total_frames_read], output, n_frames)
-
-    loop for each output frame (0 .. n_frames-1)
-        Adj->>Adj: percent = out_sample / (n_frames - 1)
-        Adj->>Adj: src_sample_float = total_frames_read * percent
-        Adj->>Adj: ApplyInterpolation(source_l, src_sample_float, total_frames_read)
-        Adj->>Adj: ApplyInterpolation(source_r, src_sample_float, total_frames_read)
-    end
-
-    Adj-->>Player: output.audio_l/r filled, output.n_frames = n_frames
-    Player-->>Codec: return n_frames
-```
+For `AudioPlayer`'s resampling logic (how `SetPlaybackSpeed()` is implemented in `Read()`),
+marker/wrap-around logic, and reverse playback semantics, see
+[`app/AudioPlayer/AudioPlayer.md`](app/AudioPlayer/AudioPlayer.md).
 
 ## Choosing which one to use
 

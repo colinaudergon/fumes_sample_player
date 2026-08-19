@@ -8,7 +8,7 @@
 #include <cstdio>
 int app::audio::AudioPlayer::Init(AudioPlayerConfiguration &configuration)
 {
-    n_channels = configuration.n_channels;
+    n_channels_ = configuration.n_channels;
     playback_speed_ = configuration.playback_speed;
     return 0;
 }
@@ -64,188 +64,114 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
 
     std::strncpy(loaded_file_path_, path, kMaxFilePathLength - 1);
     loaded_file_path_[kMaxFilePathLength - 1] = '\0';
+    bytes_per_sample_ = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
+    frame_bytes_ = bytes_per_sample_ * wav_file_handler_.GetNumChannels();
 
-    // Position the read cursor for whichever direction is currently selected: forward playback
-    // starts at frame 0, reverse playback starts at one-past-the-last frame (see Read()'s
-    // is_reverse_ branch, which consumes frames *before* current_frame_index_). Without this,
-    // loading a file while is_reverse_ is already true would leave current_frame_index_ at 0 and
-    // Read() would immediately clamp frames_remaining to 0, producing silence forever.
-    if (is_reverse_)
+    if (frame_bytes_ == 0)
     {
-        const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
-        const size_t frame_bytes = bytes_per_sample * wav_file_handler_.GetNumChannels();
-        current_frame_index_ = (frame_bytes != 0) ? static_cast<size_t>(wav_file_handler_.GetDataSize()) / frame_bytes : 0;
-    }
-    else
-    {
-        current_frame_index_ = 0;
+        file_system_.Close(file);
+        return -1;
     }
 
-    // file_read_index_ mirrors WavFileHandler's own file_read_index_ (used by IsEndOfFile()) and
-    // must be reset here too: otherwise it keeps whatever value accumulated from the previously
-    // loaded file, which can already be >= the new file's size, making IsEndOfFile() true
-    // immediately and Read() output silence from the very first call.
-    file_read_index_ = kWavHeaderSize;
+    // Seed current_frame_index_/file_read_index_ from start_marker_, honoring is_reverse_.
+    SeekStartMarker();
+
     return 0;
 }
 
 int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
 {
-    if (output.audio_l == nullptr || output.audio_r == nullptr)
+    if(!IsOutpuBufferValid(output))
     {
-        output.n_frames = 0;
         return -1;
     }
 
-    size_t n_frames_out = static_cast<size_t>(static_cast<float>(n_frames) * playback_speed_);
+    n_frames_out_ = static_cast<size_t>(static_cast<float>(n_frames) * playback_speed_);
 
-    // Clamp to the pre-resample scratch buffers' capacity. Together with SetPlaybackSpeed()'s
-    // [kMinPlayBackSpeed, kMaxPlaybackSpeed] clamp and the kMaxOutputFrames precondition on
-    // n_frames, this should never actually trigger -- it's just a last-resort safety net so a
-    // caller violating that precondition can't overflow time_adjust_source_l_/r_.
-    if (n_frames_out > kMaxSourceFrames)
+    // Clamp to the pre-resample scratch buffers' capacity; guards against overflow if a caller
+    // requests more than kMaxOutputFrames.
+    if (n_frames_out_ > kMaxSourceFrames)
     {
-        n_frames_out = kMaxSourceFrames;
+        n_frames_out_ = kMaxSourceFrames;
     }
 
-    const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
-    const size_t channels = wav_file_handler_.GetNumChannels();
-    const size_t frame_bytes = bytes_per_sample * channels;
-
-    if (frame_bytes == 0)
-    {
-        output.n_frames = 0;
-        return -1;
-    }
-
-    if (file_ == nullptr || wav_file_handler_.IsEndOfFile(file_read_index_) || is_playing_ == false)
+    if (IsNewAudioDataRequired())
     {
         is_playing_ = false;
-        // No more sample data to stream: fill the whole requested buffer with silence instead
-        // of falling into the read loop below (which would just spin on zero-byte reads) and
-        // leaving stale samples from a previous callback in place.
+        // Nothing left to stream: fill the whole buffer with silence.
         FillWithZeros(output, n_frames);
         return static_cast<int>(n_frames);
     }
 
-    // Read up to n_frames_out raw source frames (at the file's native sample rate, i.e. before
-    // any speed adjustment) into the pre-resample scratch buffers.
-    size_t frames_remaining = n_frames_out;
-    size_t total_frames_read = 0;
+    SeekStartChunk();
+    size_t total_frames_read = FetchData();
+    TrackCurrentFrameIndex(total_frames_read);
 
-    if (is_reverse_)
+    if (WrapMarker())
     {
-        // current_frame_index_ is the frame *after* the last one already played; the next chunk
-        // to read is the frames_remaining frames immediately before it. Clamp frames_remaining
-        // (and thus n_frames_out, kept in sync so later logic that reads it stays consistent) to
-        // current_frame_index_ so start_frame below never underflows when fewer than
-        // n_frames_out frames remain before frame 0.
-        frames_remaining = std::min(frames_remaining, current_frame_index_);
-        n_frames_out = frames_remaining;
-
-        size_t start_frame = current_frame_index_ - frames_remaining;
-        size_t offset = kWavHeaderSize + start_frame * frame_bytes;
-        file_system_.Lseek(file_, offset);
+        // Continue filling this same output buffer across the wrap, now bounded by the
+        // opposite marker.
+        n_frames_out_ -= total_frames_read;
+        SeekStartChunk();
+        size_t wrapped_frames_read = FetchData(total_frames_read);
+        TrackCurrentFrameIndex(wrapped_frames_read);
+        total_frames_read += wrapped_frames_read;
     }
 
-    if (is_freezed_)
+    if (!HandleEndOfFile(output, n_frames, total_frames_read))
     {
-        size_t offset = kWavHeaderSize + current_frame_index_ * frame_bytes;
-        file_system_.Lseek(file_, offset);
-    }
+        // Stretches/compresses total_frames_read source frames into exactly n_frames output
+        // frames, implementing playback_speed_.
+        wav::audio_frame_t source_frame{time_adjust_source_l_, time_adjust_source_r_, total_frames_read};
+        AdjustTime(source_frame, output, n_frames);
 
-    while (frames_remaining > 0)
-    {
-        const size_t chunk_frames = std::min(frames_remaining, kMaxReadFrames);
-        const size_t bytes_to_read = chunk_frames * frame_bytes;
-
-        size_t bytes_read = 0;
-        FsResult read_result = file_system_.Read(file_, read_scratch_buffer_, bytes_to_read, &bytes_read);
-        if (read_result != FsResult::kOk)
+        if (is_reverse_)
         {
-            break;
-        }
-
-        if (!is_freezed_)
-        {
-            file_read_index_ += bytes_read;
-        }
-
-        // Convert + copy happen in the same pass: WavFileHandler::ReadData() writes straight
-        // from the raw byte buffer into these scratch slices, no intermediate float buffer.
-        wav::audio_frame_t chunk_output{
-            time_adjust_source_l_ + total_frames_read,
-            time_adjust_source_r_ + total_frames_read,
-            0};
-
-        int converted = wav_file_handler_.ReadData(read_scratch_buffer_, bytes_read, chunk_output, chunk_frames);
-        if (converted <= 0)
-        {
-            break;
-        }
-
-        total_frames_read += static_cast<size_t>(converted);
-        frames_remaining -= chunk_frames;
-
-        if (static_cast<size_t>(converted) < chunk_frames)
-        {
-            // Short read: end of data chunk reached partway through this buffer.
-            break;
+            ReverseFrames(output, n_frames);
         }
     }
-
-    if (total_frames_read == 0)
-    {
-        // Hit EOF immediately: nothing to resample, output is silence.
-        is_playing_ = false;
-        FillWithZeros(output, n_frames);
-        return static_cast<int>(n_frames);
-    }
-
-    // AdjustTime() stretches/compresses the total_frames_read raw source frames into exactly
-    // n_frames output frames -- this is what actually implements playback_speed_ (rather than
-    // just reading more/fewer raw frames directly into `output`, which would either overflow
-    // output's capacity when playback_speed_ > 1.0 or leave part of it stale when < 1.0).
-    wav::audio_frame_t source_frame{time_adjust_source_l_, time_adjust_source_r_, total_frames_read};
-    AdjustTime(source_frame, output, n_frames);
-
-    if (is_reverse_)
-    {
-        ReverseFrames(output, n_frames);
-        if (!is_freezed_)
-        {
-            current_frame_index_ -= total_frames_read;
-        }
-    }
-    else
-    {
-        if (!is_freezed_)
-        {
-            current_frame_index_ += total_frames_read; // forward
-        }
-    }
-
     return static_cast<int>(output.n_frames);
 }
 
 void app::audio::AudioPlayer::SetReverse(bool enable)
 {
-    if (enable && !is_reverse_ && current_frame_index_ == 0)
+    const bool should_seek = enable && !is_reverse_ && current_frame_index_ == 0;
+    is_reverse_ = enable;
+    if (should_seek)
     {
-        // Reverse playback consumes frames *before* current_frame_index_ (see Read()'s
-        // is_reverse_ branch), so starting it from index 0 (e.g. right after LoadFile(), before
-        // any forward playback has advanced the cursor) would leave nothing to read and Read()
-        // would output silence forever. Seed the cursor to one-past-the-last frame so reverse
-        // playback starts from the end of the file, like forward playback starts from frame 0.
-        const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
-        const size_t frame_bytes = bytes_per_sample * wav_file_handler_.GetNumChannels();
-        if (frame_bytes != 0)
-        {
-            current_frame_index_ = static_cast<size_t>(wav_file_handler_.GetDataSize()) / frame_bytes;
-        }
+        SeekStartMarker();
+    }
+}
+
+void app::audio::AudioPlayer::SetStartMarker(uint64_t position_ms)
+{
+    if (file_ == nullptr)
+    {
+        // There is no file loaded, so there is no start nor stop marker available
+        return;
     }
 
-    is_reverse_ = enable;
+    SetMarker(position_ms, true);
+}
+
+void app::audio::AudioPlayer::SetStopMarker(uint64_t position_ms)
+{
+    if (file_ == nullptr)
+    {
+        // There is no file loaded, so there is no start nor stop marker available
+        return;
+    }
+    SetMarker(position_ms, false);
+}
+
+size_t app::audio::AudioPlayer::GetStartMarker()
+{
+    return start_marker_;
+}
+
+size_t app::audio::AudioPlayer::GetStopMarker()
+{
+    return stop_marker_;
 }
 
 void app::audio::AudioPlayer::FillWithZeros(wav::audio_frame_t &output, size_t n_frames)
@@ -263,9 +189,7 @@ void app::audio::AudioPlayer::FillWithZeros(wav::audio_frame_t &output, size_t n
 
 void app::audio::AudioPlayer::AdjustTime(wav::audio_frame_t &input, wav::audio_frame_t &output, size_t n_frames)
 {
-    // n_frames is the desired OUTPUT frame count (already computed by the caller, e.g.
-    // n_frames_out = n_frames * playback_speed_ in Read()); the source frame count comes from
-    // input.n_frames instead.
+    // n_frames is the desired output frame count; the source frame count is input.n_frames.
     size_t num_src_samples = input.n_frames;
 
     if (input.audio_l == nullptr || input.audio_r == nullptr ||
@@ -278,24 +202,221 @@ void app::audio::AudioPlayer::AdjustTime(wav::audio_frame_t &input, wav::audio_f
 
     for (size_t out_sample = 0; out_sample < n_frames; out_sample++)
     {
-        // Spreads output samples evenly across the full source range [0, num_src_samples], the
-        // same percent-based mapping TimeAdjust() uses, so the first/last output samples line up
-        // with the first/last source samples. When n_frames == 1 there's no "span" to spread
-        // across, so just sample the very start of the source buffer.
+        // Spreads output samples evenly across the source range [0, num_src_samples]. With a
+        // single output frame there's no span to spread across, so sample the start.
         float percent = (n_frames > 1)
                             ? static_cast<float>(out_sample) / static_cast<float>(n_frames - 1)
                             : 0.0f;
 
         float src_sample_float = static_cast<float>(num_src_samples) * percent;
 
-        // ApplyInterpolation() clamps src_sample_float (and its "next sample") to
-        // num_src_samples - 1 internally, so percent == 1.0 (src_sample_float ==
-        // num_src_samples, one past the last valid index) is safe here.
+        // ApplyInterpolation() clamps src_sample_float internally, so percent == 1.0 is safe.
         output.audio_l[out_sample] = ApplyInterpolation(input.audio_l, src_sample_float, num_src_samples);
         output.audio_r[out_sample] = ApplyInterpolation(input.audio_r, src_sample_float, num_src_samples);
     }
 
     output.n_frames = n_frames;
+}
+
+void app::audio::AudioPlayer::TrackCurrentFrameIndex(size_t total_frames_read)
+{
+    if (is_freezed_)
+    {
+        return;
+    }
+
+    if (is_reverse_)
+    {
+        current_frame_index_ -= total_frames_read;
+    }
+    else
+    {
+        current_frame_index_ += total_frames_read;
+    }
+}
+
+void app::audio::AudioPlayer::TrackFileReadIndex(size_t bytes_read)
+{
+    if (!is_freezed_)
+    {
+        file_read_index_ += bytes_read;
+    }
+}
+
+void app::audio::AudioPlayer::SeekStartChunk()
+{
+
+    // Read up to n_frames_out raw source frames (at the file's native sample rate, i.e. before
+    // any speed adjustment) into the pre-resample scratch buffers.
+    frames_remaining_ = n_frames_out_;
+
+    if (is_reverse_)
+    {
+        // Reverse playback must not read past stop_marker_ (0 means "no stop marker set", i.e.
+        // play down to frame 0). If wraparound is enabled and hasn't happened yet, the readable
+        // range extends down to frame 0 first; once wrapped, it's bounded by stop_marker_.
+        const size_t total_frames = GetTotalFrames();
+        const size_t effective_stop = (IsWrapEnabled() && !has_wrapped_) ? 0 : std::min(stop_marker_, total_frames);
+        const size_t frames_until_stop = (current_frame_index_ > effective_stop) ? (current_frame_index_ - effective_stop) : 0;
+        frames_remaining_ = std::min(frames_remaining_, frames_until_stop);
+        n_frames_out_ = frames_remaining_;
+
+        size_t start_frame = current_frame_index_ - frames_remaining_;
+        size_t offset = kWavHeaderSize + start_frame * frame_bytes_;
+        file_system_.Lseek(file_, offset);
+    }
+    else
+    {
+        // Forward playback must not read past stop_marker_. A stop marker smaller than
+        // start_marker_ means the playable range wraps past the end of the file (see
+        // IsWrapEnabled()/WrapMarker()); 0 means "no stop marker set", i.e. play to the actual
+        // end of the file.
+        const size_t total_frames = GetTotalFrames();
+        const size_t effective_stop = (IsWrapEnabled() && !has_wrapped_)
+                                          ? total_frames
+                                          : ((stop_marker_ != 0) ? std::min(stop_marker_, total_frames) : total_frames);
+        const size_t frames_until_stop = (current_frame_index_ < effective_stop) ? (effective_stop - current_frame_index_) : 0;
+        frames_remaining_ = std::min(frames_remaining_, frames_until_stop);
+
+        // Re-sync the file cursor to current_frame_index_: needed after any marker-seed jump
+        // (LoadFile()/looping wrap in HandleEndOfFile()), since those only update AudioPlayer's
+        // own bookkeeping, not the underlying file's read position.
+        size_t offset = kWavHeaderSize + current_frame_index_ * frame_bytes_;
+        file_system_.Lseek(file_, offset);
+    }
+
+    if (is_freezed_)
+    {
+        size_t offset = kWavHeaderSize + current_frame_index_ * frame_bytes_;
+        file_system_.Lseek(file_, offset);
+    }
+}
+
+void app::audio::AudioPlayer::SeekStartMarker()
+{
+    const size_t total_frames = GetTotalFrames();
+    const size_t clamped_start_marker = std::min(start_marker_, total_frames);
+
+    if (is_reverse_)
+    {
+        // start_marker_ == 0 means "unset": reverse then starts at the true end of the file,
+        // mirroring how stop_marker_ == 0 means "no stop" (play to true end) in forward mode.
+        current_frame_index_ = (start_marker_ == 0) ? total_frames : std::min(clamped_start_marker + 1, total_frames);
+    }
+    else
+    {
+        current_frame_index_ = clamped_start_marker;
+    }
+
+    // Byte offset matching current_frame_index_, used by IsAudioNewAudioDataRequired()'s
+    // end-of-file check.
+    file_read_index_ = kWavHeaderSize + current_frame_index_ * frame_bytes_;
+    has_wrapped_ = false;
+}
+
+size_t app::audio::AudioPlayer::GetTotalFrames()
+{
+    return (frame_bytes_ != 0) ? static_cast<size_t>(wav_file_handler_.GetDataSize()) / frame_bytes_ : 0;
+}
+
+bool app::audio::AudioPlayer::IsWrapEnabled()
+{
+    // Forward: a stop marker before the start marker means the playable range wraps past the
+    // end of the file. Reverse: a stop marker after the start marker means it wraps past the
+    // start of the file. stop_marker_ == 0 in the forward case means "unset", never wraps.
+    return is_reverse_ ? (stop_marker_ > start_marker_) : (stop_marker_ != 0 && stop_marker_ < start_marker_);
+}
+
+bool app::audio::AudioPlayer::WrapMarker()
+{
+    if (has_wrapped_ || !IsWrapEnabled())
+    {
+        return false;
+    }
+
+    const size_t total_frames = GetTotalFrames();
+    if (is_reverse_)
+    {
+        if (current_frame_index_ > 0)
+        {
+            return false; // haven't reached frame 0 yet
+        }
+        current_frame_index_ = total_frames;
+    }
+    else
+    {
+        if (current_frame_index_ < total_frames)
+        {
+            return false; // haven't reached the physical end of the file yet
+        }
+        current_frame_index_ = 0;
+    }
+
+    has_wrapped_ = true;
+    file_read_index_ = kWavHeaderSize + current_frame_index_ * frame_bytes_;
+    return true;
+}
+
+size_t app::audio::AudioPlayer::FetchData(size_t buffer_offset)
+{
+    size_t total_frames_read = 0;
+    while (frames_remaining_ > 0)
+    {
+        const size_t chunk_frames = std::min(frames_remaining_, kMaxReadFrames);
+        const size_t bytes_to_read = chunk_frames * frame_bytes_;
+
+        size_t bytes_read = 0;
+        FsResult read_result = file_system_.Read(file_, read_scratch_buffer_, bytes_to_read, &bytes_read);
+        if (read_result != FsResult::kOk)
+        {
+            break;
+        }
+
+        TrackFileReadIndex(bytes_read);
+
+        // Convert + copy happen in the same pass: WavFileHandler::ReadData() writes straight
+        // from the raw byte buffer into these scratch slices, no intermediate float buffer.
+        wav::audio_frame_t chunk_output{
+            time_adjust_source_l_ + buffer_offset + total_frames_read,
+            time_adjust_source_r_ + buffer_offset + total_frames_read,
+            0};
+
+        int converted = wav_file_handler_.ReadData(read_scratch_buffer_, bytes_read, chunk_output, chunk_frames);
+        if (converted <= 0)
+        {
+            break;
+        }
+
+        total_frames_read += static_cast<size_t>(converted);
+        frames_remaining_ -= chunk_frames;
+
+        if (static_cast<size_t>(converted) < chunk_frames)
+        {
+            // Short read: end of data chunk reached partway through this buffer.
+            break;
+        }
+    }
+    return total_frames_read;
+}
+
+
+bool app::audio::AudioPlayer::HandleEndOfFile(wav::audio_frame_t &output, size_t n_frames, size_t total_frames_read)
+{
+    if (total_frames_read == 0 && !is_looping_)
+    {
+        // Hit EOF immediately: nothing to resample, output is silence.
+        is_playing_ = false;
+        FillWithZeros(output, n_frames);
+        return true;
+    }
+    if (total_frames_read == 0 && is_looping_)
+    {
+        SeekStartMarker();
+        SeekStartChunk();
+        FillWithZeros(output, n_frames);
+        return true;
+    }
+    return false;
 }
 
 float app::audio::AudioPlayer::ApplyInterpolation(float *input, float single_value, size_t n_frames)
@@ -331,6 +452,30 @@ void app::audio::AudioPlayer::ReverseFrames(wav::audio_frame_t &input, size_t n_
         std::swap(input.audio_l[i], input.audio_l[j]);
         std::swap(input.audio_r[i], input.audio_r[j]);
     }
+}
+
+void app::audio::AudioPlayer::SetMarker(uint64_t position_ms, bool is_start_marker)
+{
+
+    size_t frame_index = (position_ms * wav_file_handler_.GetSampleRate()) / kMillisMultiplier;
+
+    if (is_start_marker)
+    {
+        start_marker_ = frame_index;
+        return;
+    }
+    stop_marker_ = frame_index;
+}
+
+bool app::audio::AudioPlayer::IsOutpuBufferValid(wav::audio_frame_t &output)
+{
+    if (output.audio_l == nullptr || output.audio_r == nullptr)
+    {
+        output.n_frames = 0;
+        return false;
+    }
+
+    return true;
 }
 
 int app::audio::AudioPlayer::Start()
@@ -401,6 +546,11 @@ int app::audio::AudioPlayer::GetDataSize()
     return wav_file_handler_.GetDataSize();
 }
 
+bool app::audio::AudioPlayer::IsNewAudioDataRequired()
+{
+    return (file_ == nullptr ||  is_playing_ == false);
+}
+
 uint32_t app::audio::AudioPlayer::GetDurationMs()
 {
     const size_t bytes_per_sample = static_cast<size_t>(wav_file_handler_.GetBitsPerSample()) / 8;
@@ -413,7 +563,26 @@ uint32_t app::audio::AudioPlayer::GetDurationMs()
     }
 
     const uint64_t data_size = static_cast<uint64_t>(wav_file_handler_.GetDataSize());
-    return static_cast<uint32_t>((data_size * 1000) / bytes_per_second);
+    return static_cast<uint32_t>((data_size * kMillisMultiplier) / bytes_per_second);
+}
+
+size_t app::audio::AudioPlayer::GetPlayheadFrame()
+{
+    // current_frame_index_ is "next frame to read" (forward) or "one past last frame played"
+    // (reverse); normalize both to the frame currently at the playhead.
+    return (is_reverse_ && current_frame_index_ > 0) ? current_frame_index_ - 1 : current_frame_index_;
+}
+
+uint32_t app::audio::AudioPlayer::GetPlayheadMs()
+{
+    const int sample_rate = wav_file_handler_.GetSampleRate();
+    if (sample_rate == 0)
+    {
+        return 0;
+    }
+
+    const uint64_t playhead_frame = static_cast<uint64_t>(GetPlayheadFrame());
+    return static_cast<uint32_t>((playhead_frame * kMillisMultiplier) / static_cast<uint64_t>(sample_rate));
 }
 
 const char *app::audio::AudioPlayer::GetAudioFile()

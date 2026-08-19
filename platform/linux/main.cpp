@@ -44,7 +44,7 @@ void buffer_callback(hw_interface::audio_buffer_t *buffer_0, hw_interface::audio
     // audio_buffer_t's fields but belongs to the app layer.
     app::audio::wav::audio_frame_t frame{current.buffer_left, current.buffer_right, current.buffer_len};
     audio_player.Read(frame, current.buffer_len);
-    effect_controller.Process(frame,frame,current.buffer_len);
+    // effect_controller.Process(frame,frame,current.buffer_len);
 }
 
 int main()
@@ -161,6 +161,16 @@ int main()
                     bool reverse_enable = command.parameter.delta == 1.0;
                     audio_player.SetReverse(reverse_enable);
                     std::printf("Reverse request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kStartMarkerParameterId)
+                {
+                    audio_player.SetStartMarker(static_cast<uint64_t>(command.parameter.delta));
+                    std::printf("Start marker set to %.0f ms\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kStopMarkerParameterId)
+                {
+                    audio_player.SetStopMarker(static_cast<uint64_t>(command.parameter.delta));
+                    std::printf("Stop marker set to %.0f ms\n", command.parameter.delta);
                 }
                 // kEffectParameterId
             }

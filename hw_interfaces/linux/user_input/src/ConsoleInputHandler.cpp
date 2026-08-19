@@ -20,6 +20,10 @@ hw_interface::ConsoleInputHandler::ConsoleInputHandler()
     freeze_command_->add_option("value", freeze_value_, "freeze enable")->required()->check(CLI::Range(0, 1));
     reverse_command_ = app_.add_subcommand("reverse", "Change play direction");
     reverse_command_->add_option("value", reverse_value_, "reverse enable")->required()->check(CLI::Range(0, 1));
+    start_marker_command_ = app_.add_subcommand("startmarker", "Set the start marker position, in ms");
+    start_marker_command_->add_option("value", start_marker_value_, "Start marker position (ms)")->required()->check(CLI::NonNegativeNumber);
+    stop_marker_command_ = app_.add_subcommand("stopmarker", "Set the stop marker position, in ms");
+    stop_marker_command_->add_option("value", stop_marker_value_, "Stop marker position (ms)")->required()->check(CLI::NonNegativeNumber);
 }
 
 int hw_interface::ConsoleInputHandler::Init()
@@ -139,6 +143,20 @@ bool hw_interface::ConsoleInputHandler::ParseLine(const std::string &line, Input
         out.type = InputEventType::kParameterChangeEvent;
         out.parameter.id = ParameterChangeId::kReverseParameterId;
         out.parameter.delta = reverse_value_;
+        return true;
+    }
+    if (start_marker_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kStartMarkerParameterId;
+        out.parameter.delta = start_marker_value_;
+        return true;
+    }
+    if (stop_marker_command_->parsed())
+    {
+        out.type = InputEventType::kParameterChangeEvent;
+        out.parameter.id = ParameterChangeId::kStopMarkerParameterId;
+        out.parameter.delta = stop_marker_value_;
         return true;
     }
     return false;
