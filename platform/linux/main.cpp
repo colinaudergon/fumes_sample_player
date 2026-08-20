@@ -179,19 +179,29 @@ int main()
                     audio_player.SetReverse(reverse_enable);
                     std::printf("Reverse request: %.2f\n", command.parameter.delta);
                 }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kLoopParameterId)
+                {
+                    bool loop_enable = command.parameter.delta == 1.0;
+                    audio_player.SetLooping(loop_enable);
+                    std::printf("Loop request: %.2f\n", command.parameter.delta);
+                }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStartMarkerParameterId)
                 {
-                    audio_player.SetStartMarker(static_cast<uint64_t>(command.parameter.delta));
+                    // command.parameter.delta is a relative position in [0.0, 1.0] (fraction of
+                    // the file's total length), not an absolute ms value.
+                    audio_player.SetStartMarker(command.parameter.delta);
                     qt_gui.SetMarkerPositions(audio_player.GetStartMarkerMs(), audio_player.GetStopMarkerMs(),
                                                audio_player.GetDurationMs());
-                    std::printf("Start marker set to %.0f ms\n", command.parameter.delta);
+                    std::printf("Start marker set to %.3f (relative)\n", command.parameter.delta);
                 }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStopMarkerParameterId)
                 {
-                    audio_player.SetStopMarker(static_cast<uint64_t>(command.parameter.delta));
+                    // command.parameter.delta is a relative position in [0.0, 1.0] (fraction of
+                    // the file's total length), not an absolute ms value.
+                    audio_player.SetStopMarker(command.parameter.delta);
                     qt_gui.SetMarkerPositions(audio_player.GetStartMarkerMs(), audio_player.GetStopMarkerMs(),
                                                audio_player.GetDurationMs());
-                    std::printf("Stop marker set to %.0f ms\n", command.parameter.delta);
+                    std::printf("Stop marker set to %.3f (relative)\n", command.parameter.delta);
                 }
                 // kEffectParameterId
             }

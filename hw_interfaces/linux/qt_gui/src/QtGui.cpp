@@ -122,8 +122,10 @@ void hw_interface::QtGui::SetupWindow()
     QPushButton *stop_button = new QPushButton("Stop", central);
     QPushButton *freeze_button = new QPushButton("Freeze", central);
     QPushButton *reverse_button = new QPushButton("Reverse", central);
+    QPushButton *loop_button = new QPushButton("Loop", central);
     freeze_button->setCheckable(true);
     reverse_button->setCheckable(true);
+    loop_button->setCheckable(true);
 
     layout->addWidget(up_button, 0, 0);
     layout->addWidget(down_button, 0, 1);
@@ -131,6 +133,7 @@ void hw_interface::QtGui::SetupWindow()
     layout->addWidget(stop_button, 1, 1);
     layout->addWidget(freeze_button, 2, 0);
     layout->addWidget(reverse_button, 2, 1);
+    layout->addWidget(loop_button, 2, 2);
 
     QObject::connect(up_button, &QPushButton::clicked, [this]()
                       {
@@ -178,6 +181,14 @@ void hw_interface::QtGui::SetupWindow()
         event.parameter.delta = checked ? 1.0f : 0.0f;
         PushEvent(event); });
 
+    QObject::connect(loop_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kLoopParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
     // -- Sliders --------------------------------------------------------------------------------
     QLabel *speed_label = new QLabel("Speed: 1.00x", central);
     QSlider *speed_slider = new QSlider(Qt::Horizontal, central);
@@ -187,13 +198,13 @@ void hw_interface::QtGui::SetupWindow()
         (last_speed_value_ - kMinPlaybackSpeed) / (kMaxPlaybackSpeed - kMinPlaybackSpeed) * kSpeedSliderSteps);
     speed_slider->setValue(initial_speed_step);
 
-    QLabel *start_marker_label = new QLabel("Start Marker: 0 ms", central);
+    QLabel *start_marker_label = new QLabel("Start Marker: 0%", central);
     QSlider *start_marker_slider = new QSlider(Qt::Horizontal, central);
-    start_marker_slider->setRange(0, kMarkerSliderMaxMs);
+    start_marker_slider->setRange(0, kMarkerSliderSteps);
 
-    QLabel *stop_marker_label = new QLabel("Stop Marker: 0 ms", central);
+    QLabel *stop_marker_label = new QLabel("Stop Marker: 0%", central);
     QSlider *stop_marker_slider = new QSlider(Qt::Horizontal, central);
-    stop_marker_slider->setRange(0, kMarkerSliderMaxMs);
+    stop_marker_slider->setRange(0, kMarkerSliderSteps);
 
     layout->addWidget(speed_label, 3, 0, 1, 2);
     layout->addWidget(speed_slider, 4, 0, 1, 2);
@@ -220,24 +231,29 @@ void hw_interface::QtGui::SetupWindow()
 
     QObject::connect(start_marker_slider, &QSlider::valueChanged, [this, start_marker_label](int value)
                       {
+        const float relative_position = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
         InputEvent event;
         event.type = InputEventType::kParameterChangeEvent;
         event.parameter.id = ParameterChangeId::kStartMarkerParameterId;
-        // main.cpp treats this delta as an absolute ms value, unlike the speed slider above.
-        event.parameter.delta = static_cast<float>(value);
+        // main.cpp treats this delta as a relative position in [0.0, 1.0] (fraction of the
+        // file's total length), unlike the speed slider above.
+        event.parameter.delta = relative_position;
         PushEvent(event);
 
-        start_marker_label->setText(QString("Start Marker: %1 ms").arg(value)); });
+        start_marker_label->setText(QString("Start Marker: %1%").arg(relative_position * 100.0f, 0, 'f', 1)); });
 
     QObject::connect(stop_marker_slider, &QSlider::valueChanged, [this, stop_marker_label](int value)
                       {
+        const float relative_position = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
         InputEvent event;
         event.type = InputEventType::kParameterChangeEvent;
         event.parameter.id = ParameterChangeId::kStopMarkerParameterId;
-        event.parameter.delta = static_cast<float>(value);
+        event.parameter.delta = relative_position;
         PushEvent(event);
 
-        stop_marker_label->setText(QString("Stop Marker: %1 ms").arg(value)); });
+        stop_marker_label->setText(QString("Stop Marker: %1%").arg(relative_position * 100.0f, 0, 'f', 1)); });
 
     // -- Status label + waveform draw area -----------------------------------------------------
     status_label_ = new QLabel("No file loaded", central);

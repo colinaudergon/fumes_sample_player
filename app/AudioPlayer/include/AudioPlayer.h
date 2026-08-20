@@ -38,8 +38,10 @@ namespace app::audio
 
         void SetReverse(bool enable);
 
-        void SetStartMarker(uint64_t position_ms);
-        void SetStopMarker(uint64_t position_ms);
+        /// @brief Sets the start/stop marker as a position relative to the file's total length.
+        /// @param relative_position 0.0 = start of file, 1.0 = end of file. Clamped to [0, 1].
+        void SetStartMarker(float relative_position);
+        void SetStopMarker(float relative_position);
         size_t GetStartMarker();
         size_t GetStopMarker();
 
@@ -162,15 +164,17 @@ namespace app::audio
 
         void ReverseFrames(wav::audio_frame_t &input, size_t n_frames);
 
-        void SetMarker(uint64_t position_ms, bool is_start_marker);
+        /// @brief Sets start_marker_/stop_marker_ from a position relative to the file's total
+        /// length (0.0 = start of file, 1.0 = end of file), converting to a frame index using
+        /// GetTotalFrames(). `relative_position` is clamped to [0, 1].
+        void SetMarker(float relative_position, bool is_start_marker);
 
         bool IsOutpuBufferValid(wav::audio_frame_t &output);
         // ---- Playback state flags ----
 
         bool is_reverse_{false};
         bool is_playing_{false};
-        // bool is_looping_{false};
-        bool is_looping_{true};
+        bool is_looping_{false};
         bool is_freezed_{false};
 
         // True once playback has physically wrapped around the file boundary during the current

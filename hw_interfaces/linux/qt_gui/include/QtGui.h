@@ -109,9 +109,10 @@ namespace hw_interface
         static constexpr float kMaxPlaybackSpeed = 4.0f;
         static constexpr int kSpeedSliderSteps = 400; // slider resolution between min/max speed
 
-        // Start/stop marker sliders: fixed placeholder range (ms), not wired to the actual
-        // loaded file's duration in this pass.
-        static constexpr int kMarkerSliderMaxMs = 60000;
+        // Start/stop marker sliders: represent a position relative to the file's total length
+        // (0.0-1.0), matching AudioPlayer::SetStartMarker()/SetStopMarker()'s contract. Backed
+        // by an integer QSlider for a fixed resolution, converted to/from a float in [0, 1].
+        static constexpr int kMarkerSliderSteps = 1000;
 
         // QApplication requires an int& argc/char** argv pair that outlives it; since QtGui is
         // constructed with no CLI args of its own, these are kept as static storage with a fixed

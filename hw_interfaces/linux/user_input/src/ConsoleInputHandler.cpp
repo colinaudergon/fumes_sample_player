@@ -20,10 +20,10 @@ hw_interface::ConsoleInputHandler::ConsoleInputHandler()
     freeze_command_->add_option("value", freeze_value_, "freeze enable")->required()->check(CLI::Range(0, 1));
     reverse_command_ = app_.add_subcommand("reverse", "Change play direction");
     reverse_command_->add_option("value", reverse_value_, "reverse enable")->required()->check(CLI::Range(0, 1));
-    start_marker_command_ = app_.add_subcommand("startmarker", "Set the start marker position, in ms");
-    start_marker_command_->add_option("value", start_marker_value_, "Start marker position (ms)")->required()->check(CLI::NonNegativeNumber);
-    stop_marker_command_ = app_.add_subcommand("stopmarker", "Set the stop marker position, in ms");
-    stop_marker_command_->add_option("value", stop_marker_value_, "Stop marker position (ms)")->required()->check(CLI::NonNegativeNumber);
+    start_marker_command_ = app_.add_subcommand("startmarker", "Set the start marker position, as a fraction of the file length (0.0-1.0)");
+    start_marker_command_->add_option("value", start_marker_value_, "Start marker position (relative, 0.0-1.0)")->required()->check(CLI::Range(0.0, 1.0));
+    stop_marker_command_ = app_.add_subcommand("stopmarker", "Set the stop marker position, as a fraction of the file length (0.0-1.0)");
+    stop_marker_command_->add_option("value", stop_marker_value_, "Stop marker position (relative, 0.0-1.0)")->required()->check(CLI::Range(0.0, 1.0));
 }
 
 int hw_interface::ConsoleInputHandler::Init()

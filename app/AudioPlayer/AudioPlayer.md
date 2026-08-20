@@ -9,8 +9,9 @@ reverse playback, and the resampling logic used to implement variable playback s
 ## Marker logic
 
 `start_marker_` and `stop_marker_` are frame indices into the file's data chunk (set via
-`SetStartMarker(position_ms)`/`SetStopMarker(position_ms)`, which convert milliseconds to frames
-using the file's sample rate — see `SetMarker()`). They bound the region of the file that gets
+`SetStartMarker(relative_position)`/`SetStopMarker(relative_position)`, which convert a
+`[0.0, 1.0]` fraction of the file's total length to frames using `GetTotalFrames()` — see
+`SetMarker()`). They bound the region of the file that gets
 played, and their *relative order* (combined with `is_reverse_`) decides whether playback plays
 a single contiguous range or wraps around a file boundary.
 

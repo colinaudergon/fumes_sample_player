@@ -18,6 +18,7 @@ namespace hw_interface
         kReverseParameterId,
         kStartMarkerParameterId,
         kStopMarkerParameterId,
+        kLoopParameterId,
 
     };
 

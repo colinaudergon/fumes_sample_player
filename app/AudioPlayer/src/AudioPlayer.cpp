@@ -144,7 +144,7 @@ void app::audio::AudioPlayer::SetReverse(bool enable)
     }
 }
 
-void app::audio::AudioPlayer::SetStartMarker(uint64_t position_ms)
+void app::audio::AudioPlayer::SetStartMarker(float relative_position)
 {
     if (file_ == nullptr)
     {
@@ -152,17 +152,17 @@ void app::audio::AudioPlayer::SetStartMarker(uint64_t position_ms)
         return;
     }
 
-    SetMarker(position_ms, true);
+    SetMarker(relative_position, true);
 }
 
-void app::audio::AudioPlayer::SetStopMarker(uint64_t position_ms)
+void app::audio::AudioPlayer::SetStopMarker(float relative_position)
 {
     if (file_ == nullptr)
     {
         // There is no file loaded, so there is no start nor stop marker available
         return;
     }
-    SetMarker(position_ms, false);
+    SetMarker(relative_position, false);
 }
 
 size_t app::audio::AudioPlayer::GetStartMarker()
@@ -475,10 +475,10 @@ void app::audio::AudioPlayer::ReverseFrames(wav::audio_frame_t &input, size_t n_
     }
 }
 
-void app::audio::AudioPlayer::SetMarker(uint64_t position_ms, bool is_start_marker)
+void app::audio::AudioPlayer::SetMarker(float relative_position, bool is_start_marker)
 {
-
-    size_t frame_index = (position_ms * wav_file_handler_.GetSampleRate()) / kMillisMultiplier;
+    const float clamped_position = std::clamp(relative_position, 0.0f, 1.0f);
+    const size_t frame_index = static_cast<size_t>(clamped_position * static_cast<float>(GetTotalFrames()));
 
     if (is_start_marker)
     {
@@ -520,6 +520,7 @@ int app::audio::AudioPlayer::Stop()
 
 int app::audio::AudioPlayer::SetLooping(bool looping)
 {
+    is_looping_ = looping;
     return 0;
 }
 
