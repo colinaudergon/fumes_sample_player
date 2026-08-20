@@ -103,7 +103,10 @@ files/folders with longer names before packing them.
 **macOS:** the same CMakeLists.txt above builds on macOS too (Qt6 Widgets + miniaudio both
 support it natively). Run `scripts/build_macos.sh` from the repo root to install the required
 Homebrew dependencies (Xcode Command Line Tools, Qt6, CMake) and build into `build-macos/` in
-one step.
+one step. To pack a folder into a correctly-sized `disk.img` (building `make_disk_image` first
+if needed), use `scripts/make_disk_image_macos.sh <source_folder> [output_image.img]`, which
+sizes the image from the folder's actual on-disk usage instead of `make_disk_image`'s fixed
+32 MiB default.
 
 ### Option B — Raspberry Pi Pico / RP2040 build
 
