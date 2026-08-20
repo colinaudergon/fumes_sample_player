@@ -8,6 +8,7 @@
 #include "../../../hw_interfaces/include/IAudioCodec.h"
 #include "../../include/IFileSystem.h"
 #include "wav_file_handler.h"
+#include "GlitchEngine.h"
 
 namespace app::audio
 {
@@ -62,6 +63,18 @@ namespace app::audio
 
         void Freeze(bool enable);
 
+        void SetGlitching(bool enable);
+        void SetGlitch(float amount);
+
+        // ---- Individual GlitchEngine parameter controls: direct pass-throughs to
+        // glitch_engine_, distinct from SetGlitch()'s single composite "amount" knob above.
+        void EnableNoiseOutput(bool enable);
+        void EnablePitchMod(bool enable);
+        void SetBitcrushEnable(bool enable);
+        void SetPitchModProbability(float value);
+        void SetStutterProbability(float value);
+        void SetSampleRateReduction(int value);
+        void SetReductionFactor(int value);
         int GetSampleRate();
         size_t GetNumChannels();
         int GetBitsPerSample();
@@ -197,6 +210,14 @@ namespace app::audio
         // fixed, safe size regardless of what SetPlaybackSpeed() is called with.
         static constexpr float kMaxPlaybackSpeed = 4.0f;
         float playback_speed_{kMinPlayBackSpeed};
+        
+
+        // ---- Glitch amount/ state ----
+        bool glitch_enable_{false};
+        float glitch_amount_{0.0f};
+        
+        GlitchEngine glitch_engine_;
+
 
         // ---- File/format state ----
 

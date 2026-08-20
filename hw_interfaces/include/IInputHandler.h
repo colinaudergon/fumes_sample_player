@@ -19,6 +19,17 @@ namespace hw_interface
         kStartMarkerParameterId,
         kStopMarkerParameterId,
         kLoopParameterId,
+        kGlitchParameterId,
+        kGlitchAmountParameterId,
+        // ---- Individual GlitchEngine parameter controls (see GlitchEngine.h), each mapped
+        // 1:1 to one of its setters rather than derived from the single kGlitchAmountParameterId.
+        kNoiseOutputParameterId,
+        kPitchModParameterId,
+        kBitcrushEnableParameterId,
+        kPitchModProbabilityParameterId,
+        kStutterProbabilityParameterId,
+        kSampleRateReductionParameterId,
+        kReductionFactorParameterId,
 
     };
 

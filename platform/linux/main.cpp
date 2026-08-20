@@ -161,10 +161,10 @@ int main()
                 }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kPlaybackSpeedParameterId)
                 {
-                    // command.parameter.delta is a relative adjustment (see ConsoleInputHandler's
-                    // "speed" subcommand help text: "Playback speed delta"), not an absolute
-                    // speed, so it's added to the current speed rather than replacing it.
-                    audio_player.SetPlaybackSpeed(audio_player.GetPlaybackSpeed() + command.parameter.delta);
+                    // command.parameter.delta carries the absolute target speed (see
+                    // ConsoleInputHandler's "speed" subcommand and QtGui's speed slider), so it
+                    // replaces the current speed rather than being added to it.
+                    audio_player.SetPlaybackSpeed(command.parameter.delta);
                     std::printf("Playback speed: %.2f\n", audio_player.GetPlaybackSpeed());
                 }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kFreezeParameterdId)
@@ -184,6 +184,60 @@ int main()
                     bool loop_enable = command.parameter.delta == 1.0;
                     audio_player.SetLooping(loop_enable);
                     std::printf("Loop request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kGlitchParameterId)
+                {
+                    bool glitch_enable = command.parameter.delta == 1.0;
+                    audio_player.SetGlitching(glitch_enable);
+                    std::printf("Glitch request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kGlitchAmountParameterId)
+                {
+                    // command.parameter.delta is a relative amount in [0.0, 1.0].
+                    audio_player.SetGlitch(command.parameter.delta);
+                    std::printf("Glitch amount set to %.3f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kNoiseOutputParameterId)
+                {
+                    bool noise_output_enable = command.parameter.delta == 1.0;
+                    audio_player.EnableNoiseOutput(noise_output_enable);
+                    std::printf("Noise output request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kPitchModParameterId)
+                {
+                    bool pitch_mod_enable = command.parameter.delta == 1.0;
+                    audio_player.EnablePitchMod(pitch_mod_enable);
+                    std::printf("Pitch mod request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kBitcrushEnableParameterId)
+                {
+                    bool bitcrush_enable = command.parameter.delta == 1.0;
+                    audio_player.SetBitcrushEnable(bitcrush_enable);
+                    std::printf("Bitcrush request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kPitchModProbabilityParameterId)
+                {
+                    // command.parameter.delta is an absolute probability in [0.0, 1.0].
+                    audio_player.SetPitchModProbability(command.parameter.delta);
+                    std::printf("Pitch mod probability set to %.3f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kStutterProbabilityParameterId)
+                {
+                    // command.parameter.delta is an absolute probability in [0.0, 1.0].
+                    audio_player.SetStutterProbability(command.parameter.delta);
+                    std::printf("Stutter probability set to %.3f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kSampleRateReductionParameterId)
+                {
+                    // command.parameter.delta carries the absolute integer reduction factor.
+                    audio_player.SetSampleRateReduction(static_cast<int>(command.parameter.delta));
+                    std::printf("Sample rate reduction set to %.0f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kReductionFactorParameterId)
+                {
+                    // command.parameter.delta carries the absolute integer reduction factor.
+                    audio_player.SetReductionFactor(static_cast<int>(command.parameter.delta));
+                    std::printf("Reduction factor set to %.0f\n", command.parameter.delta);
                 }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStartMarkerParameterId)
                 {

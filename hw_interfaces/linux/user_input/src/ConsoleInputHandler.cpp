@@ -15,7 +15,7 @@ hw_interface::ConsoleInputHandler::ConsoleInputHandler()
     play_command_ = app_.add_subcommand("play", "Start playing");
     stop_command_ = app_.add_subcommand("stop", "Stop playing");
     speed_command_ = app_.add_subcommand("speed", "change playback speed");
-    speed_command_->add_option("value", speed_value_, "Playback speed delta")->required()->check(CLI::Range(-1.0, 1.0));
+    speed_command_->add_option("value", speed_value_, "Playback speed (absolute, 0.01-4.0)")->required()->check(CLI::Range(0.01, 4.0));
     freeze_command_ = app_.add_subcommand("freeze", "Freeze the output buffer to its current value, no more data is fetched");
     freeze_command_->add_option("value", freeze_value_, "freeze enable")->required()->check(CLI::Range(0, 1));
     reverse_command_ = app_.add_subcommand("reverse", "Change play direction");

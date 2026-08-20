@@ -53,7 +53,7 @@ namespace hw_interface
         CLI::App *reverse_command_ = nullptr;
         CLI::App *start_marker_command_ = nullptr;
         CLI::App *stop_marker_command_ = nullptr;
-        float speed_value_ = 0.0f;
+        float speed_value_ = 1.0f;
         float freeze_value_ = 0.0f;
         float reverse_value_ = 0.0f;
         float start_marker_value_ = 0.0f;

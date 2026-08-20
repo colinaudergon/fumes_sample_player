@@ -123,9 +123,14 @@ void hw_interface::QtGui::SetupWindow()
     QPushButton *freeze_button = new QPushButton("Freeze", central);
     QPushButton *reverse_button = new QPushButton("Reverse", central);
     QPushButton *loop_button = new QPushButton("Loop", central);
+    QPushButton *glitch_button = new QPushButton("Glitch", central);
     freeze_button->setCheckable(true);
     reverse_button->setCheckable(true);
     loop_button->setCheckable(true);
+    glitch_button->setCheckable(true);
+    // AudioPlayer::is_looping_ defaults to true, so reflect that as the button's initial state
+    // (set before connecting the signal below, so this doesn't emit a spurious startup event).
+    loop_button->setChecked(true);
 
     layout->addWidget(up_button, 0, 0);
     layout->addWidget(down_button, 0, 1);
@@ -134,6 +139,7 @@ void hw_interface::QtGui::SetupWindow()
     layout->addWidget(freeze_button, 2, 0);
     layout->addWidget(reverse_button, 2, 1);
     layout->addWidget(loop_button, 2, 2);
+    layout->addWidget(glitch_button, 2, 3);
 
     QObject::connect(up_button, &QPushButton::clicked, [this]()
                       {
@@ -189,13 +195,21 @@ void hw_interface::QtGui::SetupWindow()
         event.parameter.delta = checked ? 1.0f : 0.0f;
         PushEvent(event); });
 
+    QObject::connect(glitch_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kGlitchParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
     // -- Sliders --------------------------------------------------------------------------------
     QLabel *speed_label = new QLabel("Speed: 1.00x", central);
     QSlider *speed_slider = new QSlider(Qt::Horizontal, central);
     speed_slider->setRange(0, kSpeedSliderSteps);
-    // Initial slider position corresponds to last_speed_value_ (1.0x default speed).
+    // Initial slider position corresponds to kInitialSpeedValue (1.0x default speed).
     const int initial_speed_step = static_cast<int>(
-        (last_speed_value_ - kMinPlaybackSpeed) / (kMaxPlaybackSpeed - kMinPlaybackSpeed) * kSpeedSliderSteps);
+        (kInitialSpeedValue - kMinPlaybackSpeed) / (kMaxPlaybackSpeed - kMinPlaybackSpeed) * kSpeedSliderSteps);
     speed_slider->setValue(initial_speed_step);
 
     QLabel *start_marker_label = new QLabel("Start Marker: 0%", central);
@@ -206,12 +220,18 @@ void hw_interface::QtGui::SetupWindow()
     QSlider *stop_marker_slider = new QSlider(Qt::Horizontal, central);
     stop_marker_slider->setRange(0, kMarkerSliderSteps);
 
+    QLabel *glitch_label = new QLabel("Glitch Amount: 0%", central);
+    QSlider *glitch_slider = new QSlider(Qt::Horizontal, central);
+    glitch_slider->setRange(0, kMarkerSliderSteps);
+
     layout->addWidget(speed_label, 3, 0, 1, 2);
     layout->addWidget(speed_slider, 4, 0, 1, 2);
     layout->addWidget(start_marker_label, 5, 0, 1, 2);
     layout->addWidget(start_marker_slider, 6, 0, 1, 2);
     layout->addWidget(stop_marker_label, 7, 0, 1, 2);
     layout->addWidget(stop_marker_slider, 8, 0, 1, 2);
+    layout->addWidget(glitch_label, 9, 0, 1, 2);
+    layout->addWidget(glitch_slider, 10, 0, 1, 2);
 
     QObject::connect(speed_slider, &QSlider::valueChanged, [this, speed_label](int value)
                       {
@@ -221,10 +241,10 @@ void hw_interface::QtGui::SetupWindow()
         InputEvent event;
         event.type = InputEventType::kParameterChangeEvent;
         event.parameter.id = ParameterChangeId::kPlaybackSpeedParameterId;
-        // main.cpp treats this delta as relative (added to AudioPlayer's current speed), so emit
-        // the change since the last slider position rather than the absolute value.
-        event.parameter.delta = new_speed - last_speed_value_;
-        last_speed_value_ = new_speed;
+        // main.cpp sets AudioPlayer's speed directly from this value (see
+        // kPlaybackSpeedParameterId's branch), so the presented slider value and the
+        // effective playback speed always match.
+        event.parameter.delta = new_speed;
         PushEvent(event);
 
         speed_label->setText(QString("Speed: %1x").arg(new_speed, 0, 'f', 2)); });
@@ -255,12 +275,138 @@ void hw_interface::QtGui::SetupWindow()
 
         stop_marker_label->setText(QString("Stop Marker: %1%").arg(relative_position * 100.0f, 0, 'f', 1)); });
 
+    QObject::connect(glitch_slider, &QSlider::valueChanged, [this, glitch_label](int value)
+                      {
+        const float amount = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kGlitchAmountParameterId;
+        event.parameter.delta = amount;
+        PushEvent(event);
+
+        glitch_label->setText(QString("Glitch Amount: %1%").arg(amount * 100.0f, 0, 'f', 1)); });
+
+    // -- Glitch parameters sub-section -----------------------------------------------------
+    // Individual GlitchEngine controls (see GlitchEngine.h), each mapped 1:1 to one of its
+    // setters via AudioPlayer's pass-throughs, distinct from the composite glitch_slider above.
+    QLabel *glitch_params_label = new QLabel("Glitch Parameters", central);
+    layout->addWidget(glitch_params_label, 11, 0, 1, 2);
+
+    QPushButton *noise_output_button = new QPushButton("Noise Output", central);
+    QPushButton *pitch_mod_button = new QPushButton("Pitch Mod", central);
+    QPushButton *bitcrush_button = new QPushButton("Bitcrush", central);
+    noise_output_button->setCheckable(true);
+    pitch_mod_button->setCheckable(true);
+    bitcrush_button->setCheckable(true);
+
+    layout->addWidget(noise_output_button, 12, 0);
+    layout->addWidget(pitch_mod_button, 12, 1);
+    layout->addWidget(bitcrush_button, 12, 2);
+
+    QObject::connect(noise_output_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kNoiseOutputParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
+    QObject::connect(pitch_mod_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kPitchModParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
+    QObject::connect(bitcrush_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kBitcrushEnableParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
+    QLabel *pitch_mod_probability_label = new QLabel("Pitch Mod Probability: 0%", central);
+    QSlider *pitch_mod_probability_slider = new QSlider(Qt::Horizontal, central);
+    pitch_mod_probability_slider->setRange(0, kMarkerSliderSteps);
+
+    QLabel *stutter_probability_label = new QLabel("Stutter Probability: 0%", central);
+    QSlider *stutter_probability_slider = new QSlider(Qt::Horizontal, central);
+    stutter_probability_slider->setRange(0, kMarkerSliderSteps);
+
+    QLabel *sample_rate_reduction_label = new QLabel(
+        QString("Sample Rate Reduction: %1").arg(kMinSampleRateReduction), central);
+    QSlider *sample_rate_reduction_slider = new QSlider(Qt::Horizontal, central);
+    sample_rate_reduction_slider->setRange(kMinSampleRateReduction, kMaxSampleRateReduction);
+    sample_rate_reduction_slider->setValue(kMinSampleRateReduction);
+
+    QLabel *reduction_factor_label = new QLabel(
+        QString("Reduction Factor: %1").arg(kMinReductionFactor), central);
+    QSlider *reduction_factor_slider = new QSlider(Qt::Horizontal, central);
+    reduction_factor_slider->setRange(kMinReductionFactor, kMaxReductionFactor);
+    reduction_factor_slider->setValue(kMinReductionFactor);
+
+    layout->addWidget(pitch_mod_probability_label, 13, 0, 1, 2);
+    layout->addWidget(pitch_mod_probability_slider, 14, 0, 1, 2);
+    layout->addWidget(stutter_probability_label, 15, 0, 1, 2);
+    layout->addWidget(stutter_probability_slider, 16, 0, 1, 2);
+    layout->addWidget(sample_rate_reduction_label, 17, 0, 1, 2);
+    layout->addWidget(sample_rate_reduction_slider, 18, 0, 1, 2);
+    layout->addWidget(reduction_factor_label, 19, 0, 1, 2);
+    layout->addWidget(reduction_factor_slider, 20, 0, 1, 2);
+
+    QObject::connect(pitch_mod_probability_slider, &QSlider::valueChanged, [this, pitch_mod_probability_label](int value)
+                      {
+        const float probability = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kPitchModProbabilityParameterId;
+        event.parameter.delta = probability;
+        PushEvent(event);
+
+        pitch_mod_probability_label->setText(QString("Pitch Mod Probability: %1%").arg(probability * 100.0f, 0, 'f', 1)); });
+
+    QObject::connect(stutter_probability_slider, &QSlider::valueChanged, [this, stutter_probability_label](int value)
+                      {
+        const float probability = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kStutterProbabilityParameterId;
+        event.parameter.delta = probability;
+        PushEvent(event);
+
+        stutter_probability_label->setText(QString("Stutter Probability: %1%").arg(probability * 100.0f, 0, 'f', 1)); });
+
+    QObject::connect(sample_rate_reduction_slider, &QSlider::valueChanged, [this, sample_rate_reduction_label](int value)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kSampleRateReductionParameterId;
+        event.parameter.delta = static_cast<float>(value);
+        PushEvent(event);
+
+        sample_rate_reduction_label->setText(QString("Sample Rate Reduction: %1").arg(value)); });
+
+    QObject::connect(reduction_factor_slider, &QSlider::valueChanged, [this, reduction_factor_label](int value)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kReductionFactorParameterId;
+        event.parameter.delta = static_cast<float>(value);
+        PushEvent(event);
+
+        reduction_factor_label->setText(QString("Reduction Factor: %1").arg(value)); });
+
     // -- Status label + waveform draw area -----------------------------------------------------
     status_label_ = new QLabel("No file loaded", central);
-    layout->addWidget(status_label_, 9, 0, 1, 2);
+    layout->addWidget(status_label_, 21, 0, 1, 2);
 
     waveform_widget_ = new WaveformWidget(central);
-    layout->addWidget(waveform_widget_, 10, 0, 1, 2);
+    layout->addWidget(waveform_widget_, 22, 0, 1, 2);
 
     central->setLayout(layout);
     window_->setCentralWidget(central);

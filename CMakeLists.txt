@@ -22,6 +22,8 @@ add_subdirectory(app/AudioPlayer)
 add_subdirectory(app/AudioEffects)
 add_subdirectory(app/FileSystem)
 add_subdirectory(app/FileManager)
+add_subdirectory(app/GlitchEngine)
+
 
 add_subdirectory(hw_interfaces/linux)
 

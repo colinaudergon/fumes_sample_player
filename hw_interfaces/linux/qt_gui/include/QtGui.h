@@ -114,6 +114,17 @@ namespace hw_interface
         // by an integer QSlider for a fixed resolution, converted to/from a float in [0, 1].
         static constexpr int kMarkerSliderSteps = 1000;
 
+        // ---- Glitch parameters sub-section (see GlitchEngine.h) ----
+        // Probability sliders (pitch mod / stutter): same [0, 1] convention as the marker
+        // sliders above, reusing kMarkerSliderSteps for resolution.
+        // Sample rate reduction / reduction factor: integer GlitchEngine knobs (see
+        // GlitchEngine::kMinSampleRateReduction/kMinReductionFactor), exposed directly as
+        // integer-ranged sliders.
+        static constexpr int kMinSampleRateReduction = 1;
+        static constexpr int kMaxSampleRateReduction = 100;
+        static constexpr int kMinReductionFactor = 1;
+        static constexpr int kMaxReductionFactor = 500;
+
         // QApplication requires an int& argc/char** argv pair that outlives it; since QtGui is
         // constructed with no CLI args of its own, these are kept as static storage with a fixed
         // "no arguments" value.
@@ -128,11 +139,10 @@ namespace hw_interface
         // Filled by widget signal handlers (SetupWindow()), drained by PollEvent().
         std::deque<InputEvent> event_queue_;
 
-        // Speed slider emits main.cpp-compatible *relative* deltas (see
-        // ConsoleInputHandler::speed_command_'s handling and main.cpp's
-        // kPlaybackSpeedParameterId branch), so the handler tracks the last value it sent to
-        // compute each new delta.
-        float last_speed_value_ = 1.0f;
+        // Initial value of the speed slider/label, matching AudioPlayer's default playback
+        // speed (1.0x). The slider itself emits the absolute speed value directly (see
+        // SetupWindow()), so unlike other sliders this isn't updated after construction.
+        static constexpr float kInitialSpeedValue = 1.0f;
     };
 
 } // namespace hw_interface

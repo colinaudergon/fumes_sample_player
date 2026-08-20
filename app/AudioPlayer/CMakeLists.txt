@@ -19,4 +19,5 @@ target_include_directories(AudioPlayer PUBLIC
 # pico_stdlib) is still supplied and linked by the platform's own executable target.
 target_link_libraries(AudioPlayer PUBLIC
         FileSystem
+        GlitchEngine
 )

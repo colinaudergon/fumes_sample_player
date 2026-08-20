@@ -74,6 +74,8 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
         return -1;
     }
 
+    glitch_engine_.OnNewFile(wav_file_handler_.GetSampleRate(), wav_file_handler_.GetDataSize());
+
     // Seed current_frame_index_/file_read_index_ from start_marker_, honoring is_reverse_.
     SeekStartMarker();
 
@@ -82,7 +84,7 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
 
 int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
 {
-    if(!IsOutpuBufferValid(output))
+    if (!IsOutpuBufferValid(output))
     {
         return -1;
     }
@@ -129,6 +131,17 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         if (is_reverse_)
         {
             ReverseFrames(output, n_frames);
+        }
+
+        glitch_engine_.ProcessFrame(output, output, n_frames, GetPlayheadFrame());
+        
+        if(glitch_enable_ && glitch_engine_.IsPitchModRequired())
+        {
+            playback_speed_ = glitch_engine_.GetNextPlaybackSpeed();
+        }
+        else if (glitch_enable_)
+        {
+           playback_speed_=  glitch_engine_.GetPreviousPlaybackSpeed();
         }
     }
     return static_cast<int>(output.n_frames);
@@ -266,6 +279,12 @@ void app::audio::AudioPlayer::TrackFileReadIndex(size_t bytes_read)
 
 void app::audio::AudioPlayer::SeekStartChunk()
 {
+    if (glitch_enable_ && glitch_engine_.IsGlitchFetchRequired())
+    {
+        // Instead of reading the next contiguous chunk, jump to a randomly-picked previously
+        // detected beat position, producing the glitch/beat-repeat stutter effect.
+        current_frame_index_ = std::min(glitch_engine_.GlitchFetchFramePosition(), GetTotalFrames());
+    }
 
     // Read up to n_frames_out raw source frames (at the file's native sample rate, i.e. before
     // any speed adjustment) into the pre-resample scratch buffers.
@@ -318,6 +337,9 @@ void app::audio::AudioPlayer::SeekStartMarker()
     const size_t total_frames = GetTotalFrames();
     const size_t clamped_start_marker = std::min(start_marker_, total_frames);
 
+    // if(!glitch_enable_)
+    // {
+
     if (is_reverse_)
     {
         // start_marker_ == 0 means "unset": reverse then starts at the true end of the file,
@@ -328,7 +350,12 @@ void app::audio::AudioPlayer::SeekStartMarker()
     {
         current_frame_index_ = clamped_start_marker;
     }
+    // }
 
+    // else
+    // {
+    //     size_t fetched_frame = glitch_engine_.GlitchFetchFramePosition();
+    // }
     // Byte offset matching current_frame_index_, used by IsAudioNewAudioDataRequired()'s
     // end-of-file check.
     file_read_index_ = kWavHeaderSize + current_frame_index_ * frame_bytes_;
@@ -419,7 +446,6 @@ size_t app::audio::AudioPlayer::FetchData(size_t buffer_offset)
     }
     return total_frames_read;
 }
-
 
 bool app::audio::AudioPlayer::HandleEndOfFile(wav::audio_frame_t &output, size_t n_frames, size_t total_frames_read)
 {
@@ -535,6 +561,10 @@ int app::audio::AudioPlayer::SetPlaybackSpeed(float speed)
     {
         playback_speed_ = kMaxPlaybackSpeed;
     }
+
+    glitch_engine_.SetPlaybackSpeed(speed);
+    glitch_engine_.SavePreviousPlaybackSpeed(playback_speed_);
+    
     return 0;
 }
 
@@ -546,6 +576,60 @@ float app::audio::AudioPlayer::GetPlaybackSpeed()
 void app::audio::AudioPlayer::Freeze(bool enable)
 {
     is_freezed_ = enable && is_playing_;
+}
+
+void app::audio::AudioPlayer::SetGlitching(bool enable)
+{
+    glitch_enable_ = enable;
+    glitch_engine_.SetBitcrushEnable(glitch_enable_);
+    printf("Glitch enable: %d\n", enable);
+}
+
+void app::audio::AudioPlayer::SetGlitch(float amount)
+{
+    int reduction_factor = static_cast<int>(amount * 100);
+
+    glitch_engine_.SetStutterProbability(amount);
+
+    glitch_engine_.SetReductionFactor(reduction_factor);
+    glitch_engine_.SetSampleRateReduction(2 * reduction_factor);
+
+    glitch_engine_.EnableNoiseOutput(!(reduction_factor % 2));
+}
+
+void app::audio::AudioPlayer::EnableNoiseOutput(bool enable)
+{
+    glitch_engine_.EnableNoiseOutput(enable);
+}
+
+void app::audio::AudioPlayer::EnablePitchMod(bool enable)
+{
+    glitch_engine_.EnablePitchMod(enable);
+}
+
+void app::audio::AudioPlayer::SetBitcrushEnable(bool enable)
+{
+    glitch_engine_.SetBitcrushEnable(enable);
+}
+
+void app::audio::AudioPlayer::SetPitchModProbability(float value)
+{
+    glitch_engine_.SetPitchModProbability(value);
+}
+
+void app::audio::AudioPlayer::SetStutterProbability(float value)
+{
+    glitch_engine_.SetStutterProbability(value);
+}
+
+void app::audio::AudioPlayer::SetSampleRateReduction(int value)
+{
+    glitch_engine_.SetSampleRateReduction(value);
+}
+
+void app::audio::AudioPlayer::SetReductionFactor(int value)
+{
+    glitch_engine_.SetReductionFactor(value);
 }
 
 int app::audio::AudioPlayer::GetSampleRate()
@@ -570,7 +654,7 @@ int app::audio::AudioPlayer::GetDataSize()
 
 bool app::audio::AudioPlayer::IsNewAudioDataRequired()
 {
-    return (file_ == nullptr ||  is_playing_ == false);
+    return (file_ == nullptr || is_playing_ == false);
 }
 
 uint32_t app::audio::AudioPlayer::GetDurationMs()
