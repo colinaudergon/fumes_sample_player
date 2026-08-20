@@ -100,6 +100,11 @@ with long-file-name support disabled (`FF_USE_LFN == 0`, see
 `lib/FatFsCore/ff15/source/ffconf.h`), so only 8.3 short filenames are supported — rename any
 files/folders with longer names before packing them.
 
+**macOS:** the same CMakeLists.txt above builds on macOS too (Qt6 Widgets + miniaudio both
+support it natively). Run `scripts/build_macos.sh` from the repo root to install the required
+Homebrew dependencies (Xcode Command Line Tools, Qt6, CMake) and build into `build-macos/` in
+one step.
+
 ### Option B — Raspberry Pi Pico / RP2040 build
 
 Builds the `wav_file_reader` firmware image (`.uf2`, `.elf`, etc.) using the Pico SDK. This is

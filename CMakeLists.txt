@@ -35,20 +35,41 @@ add_executable(sample_player platform/linux/main.cpp)
 # single left-to-right pass by default, so whichever of the two is listed first would leave the
 # other's symbols unresolved. Wrapping them in --start-group/--end-group makes the linker keep
 # re-scanning the group until every symbol is resolved, regardless of ordering.
-target_link_libraries(sample_player PRIVATE
-    -Wl,--start-group
-    AudioPlayer
-    AudioEffects
-    FileSystem
-    FileManager
-    null_audio_codec
-    Display
-    posix_block_device
-    FatFsCore
-    ConsoleInputHandler
-    QtGui
-    -Wl,--end-group
-)
+#
+# --start-group/--end-group is GNU ld syntax only: Apple's linker (ld64, and its ld64.lld/
+# ld-prime successors) doesn't recognize it and errors out with "unknown argument". That linker
+# doesn't need it anyway -- unlike classic GNU ld, it isn't limited to a single left-to-right
+# pass over static libraries, so it resolves this same circular dependency without any extra
+# flags regardless of library order.
+if(APPLE)
+    target_link_libraries(sample_player PRIVATE
+        AudioPlayer
+        AudioEffects
+        FileSystem
+        FileManager
+        null_audio_codec
+        Display
+        posix_block_device
+        FatFsCore
+        ConsoleInputHandler
+        QtGui
+    )
+else()
+    target_link_libraries(sample_player PRIVATE
+        -Wl,--start-group
+        AudioPlayer
+        AudioEffects
+        FileSystem
+        FileManager
+        null_audio_codec
+        Display
+        posix_block_device
+        FatFsCore
+        ConsoleInputHandler
+        QtGui
+        -Wl,--end-group
+    )
+endif()
 
 # Host-side CLI utility: packs a folder's contents into a FAT disk-image file consumable by
 # wav_file_reader_native (see platform/linux/tools/make_disk_image.cpp). Only needs FileSystem
@@ -56,10 +77,19 @@ target_link_libraries(sample_player PRIVATE
 # FatFsCore/FileSystem dependency as the main executable above.
 add_executable(make_disk_image platform/linux/tools/make_disk_image.cpp)
 
-target_link_libraries(make_disk_image PRIVATE
-    -Wl,--start-group
-    FileSystem
-    posix_block_device
-    FatFsCore
-    -Wl,--end-group
-)
+# See the sample_player target above for why --start-group/--end-group is skipped on Apple.
+if(APPLE)
+    target_link_libraries(make_disk_image PRIVATE
+        FileSystem
+        posix_block_device
+        FatFsCore
+    )
+else()
+    target_link_libraries(make_disk_image PRIVATE
+        -Wl,--start-group
+        FileSystem
+        posix_block_device
+        FatFsCore
+        -Wl,--end-group
+    )
+endif()
