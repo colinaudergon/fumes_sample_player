@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QGridLayout>
+#include <QGroupBox>
 #include <QLabel>
 #include <QMainWindow>
 #include <QPainter>
@@ -128,9 +129,6 @@ void hw_interface::QtGui::SetupWindow()
     reverse_button->setCheckable(true);
     loop_button->setCheckable(true);
     glitch_button->setCheckable(true);
-    // AudioPlayer::is_looping_ defaults to true, so reflect that as the button's initial state
-    // (set before connecting the signal below, so this doesn't emit a spurious startup event).
-    loop_button->setChecked(true);
 
     layout->addWidget(up_button, 0, 0);
     layout->addWidget(down_button, 0, 1);
@@ -138,8 +136,9 @@ void hw_interface::QtGui::SetupWindow()
     layout->addWidget(stop_button, 1, 1);
     layout->addWidget(freeze_button, 2, 0);
     layout->addWidget(reverse_button, 2, 1);
-    layout->addWidget(loop_button, 2, 2);
-    layout->addWidget(glitch_button, 2, 3);
+    layout->addWidget(loop_button, 3, 0);
+    // glitch_button is added inside glitch_group below instead of here, alongside the rest of
+    // the glitch-related controls.
 
     QObject::connect(up_button, &QPushButton::clicked, [this]()
                       {
@@ -220,18 +219,12 @@ void hw_interface::QtGui::SetupWindow()
     QSlider *stop_marker_slider = new QSlider(Qt::Horizontal, central);
     stop_marker_slider->setRange(0, kMarkerSliderSteps);
 
-    QLabel *glitch_label = new QLabel("Glitch Amount: 0%", central);
-    QSlider *glitch_slider = new QSlider(Qt::Horizontal, central);
-    glitch_slider->setRange(0, kMarkerSliderSteps);
-
-    layout->addWidget(speed_label, 3, 0, 1, 2);
-    layout->addWidget(speed_slider, 4, 0, 1, 2);
-    layout->addWidget(start_marker_label, 5, 0, 1, 2);
-    layout->addWidget(start_marker_slider, 6, 0, 1, 2);
-    layout->addWidget(stop_marker_label, 7, 0, 1, 2);
-    layout->addWidget(stop_marker_slider, 8, 0, 1, 2);
-    layout->addWidget(glitch_label, 9, 0, 1, 2);
-    layout->addWidget(glitch_slider, 10, 0, 1, 2);
+    layout->addWidget(speed_label, 4, 0, 1, 2);
+    layout->addWidget(speed_slider, 5, 0, 1, 2);
+    layout->addWidget(start_marker_label, 6, 0, 1, 2);
+    layout->addWidget(start_marker_slider, 7, 0, 1, 2);
+    layout->addWidget(stop_marker_label, 8, 0, 1, 2);
+    layout->addWidget(stop_marker_slider, 9, 0, 1, 2);
 
     QObject::connect(speed_slider, &QSlider::valueChanged, [this, speed_label](int value)
                       {
@@ -275,23 +268,17 @@ void hw_interface::QtGui::SetupWindow()
 
         stop_marker_label->setText(QString("Stop Marker: %1%").arg(relative_position * 100.0f, 0, 'f', 1)); });
 
-    QObject::connect(glitch_slider, &QSlider::valueChanged, [this, glitch_label](int value)
-                      {
-        const float amount = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+    // -- Glitch controls (grouped in a light grey box) -------------------------------------
+    // All glitch-related controls -- the overall on/off toggle plus the individual
+    // GlitchEngine parameters below (see GlitchEngine.h), each mapped 1:1 to one of its
+    // setters via AudioPlayer's pass-throughs -- live together in one visually distinct box.
+    QGroupBox *glitch_group = new QGroupBox("Glitch", central);
+    glitch_group->setStyleSheet(
+        "QGroupBox { background-color: #d3d3d3; border-radius: 6px; margin-top: 8px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }");
+    QGridLayout *glitch_layout = new QGridLayout(glitch_group);
 
-        InputEvent event;
-        event.type = InputEventType::kParameterChangeEvent;
-        event.parameter.id = ParameterChangeId::kGlitchAmountParameterId;
-        event.parameter.delta = amount;
-        PushEvent(event);
-
-        glitch_label->setText(QString("Glitch Amount: %1%").arg(amount * 100.0f, 0, 'f', 1)); });
-
-    // -- Glitch parameters sub-section -----------------------------------------------------
-    // Individual GlitchEngine controls (see GlitchEngine.h), each mapped 1:1 to one of its
-    // setters via AudioPlayer's pass-throughs, distinct from the composite glitch_slider above.
-    QLabel *glitch_params_label = new QLabel("Glitch Parameters", central);
-    layout->addWidget(glitch_params_label, 11, 0, 1, 2);
+    glitch_layout->addWidget(glitch_button, 0, 0, 1, 3);
 
     QPushButton *noise_output_button = new QPushButton("Noise Output", central);
     QPushButton *pitch_mod_button = new QPushButton("Pitch Mod", central);
@@ -300,9 +287,9 @@ void hw_interface::QtGui::SetupWindow()
     pitch_mod_button->setCheckable(true);
     bitcrush_button->setCheckable(true);
 
-    layout->addWidget(noise_output_button, 12, 0);
-    layout->addWidget(pitch_mod_button, 12, 1);
-    layout->addWidget(bitcrush_button, 12, 2);
+    glitch_layout->addWidget(noise_output_button, 1, 0);
+    glitch_layout->addWidget(pitch_mod_button, 1, 1);
+    glitch_layout->addWidget(bitcrush_button, 1, 2);
 
     QObject::connect(noise_output_button, &QPushButton::toggled, [this](bool checked)
                       {
@@ -348,14 +335,14 @@ void hw_interface::QtGui::SetupWindow()
     reduction_factor_slider->setRange(kMinReductionFactor, kMaxReductionFactor);
     reduction_factor_slider->setValue(kMinReductionFactor);
 
-    layout->addWidget(pitch_mod_probability_label, 13, 0, 1, 2);
-    layout->addWidget(pitch_mod_probability_slider, 14, 0, 1, 2);
-    layout->addWidget(stutter_probability_label, 15, 0, 1, 2);
-    layout->addWidget(stutter_probability_slider, 16, 0, 1, 2);
-    layout->addWidget(sample_rate_reduction_label, 17, 0, 1, 2);
-    layout->addWidget(sample_rate_reduction_slider, 18, 0, 1, 2);
-    layout->addWidget(reduction_factor_label, 19, 0, 1, 2);
-    layout->addWidget(reduction_factor_slider, 20, 0, 1, 2);
+    glitch_layout->addWidget(pitch_mod_probability_label, 2, 0, 1, 3);
+    glitch_layout->addWidget(pitch_mod_probability_slider, 3, 0, 1, 3);
+    glitch_layout->addWidget(stutter_probability_label, 4, 0, 1, 3);
+    glitch_layout->addWidget(stutter_probability_slider, 5, 0, 1, 3);
+    glitch_layout->addWidget(sample_rate_reduction_label, 6, 0, 1, 3);
+    glitch_layout->addWidget(sample_rate_reduction_slider, 7, 0, 1, 3);
+    glitch_layout->addWidget(reduction_factor_label, 8, 0, 1, 3);
+    glitch_layout->addWidget(reduction_factor_slider, 9, 0, 1, 3);
 
     QObject::connect(pitch_mod_probability_slider, &QSlider::valueChanged, [this, pitch_mod_probability_label](int value)
                       {
@@ -401,12 +388,14 @@ void hw_interface::QtGui::SetupWindow()
 
         reduction_factor_label->setText(QString("Reduction Factor: %1").arg(value)); });
 
+    layout->addWidget(glitch_group, 10, 0, 1, 2);
+
     // -- Status label + waveform draw area -----------------------------------------------------
     status_label_ = new QLabel("No file loaded", central);
-    layout->addWidget(status_label_, 21, 0, 1, 2);
+    layout->addWidget(status_label_, 11, 0, 1, 2);
 
     waveform_widget_ = new WaveformWidget(central);
-    layout->addWidget(waveform_widget_, 22, 0, 1, 2);
+    layout->addWidget(waveform_widget_, 12, 0, 1, 2);
 
     central->setLayout(layout);
     window_->setCentralWidget(central);

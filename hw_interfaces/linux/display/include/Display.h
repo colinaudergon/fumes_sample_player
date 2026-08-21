@@ -30,9 +30,6 @@ namespace hw_interface
         int DisplayAudioBufferContent(float *audio_left, float *audio_right, size_t n_frames) override;
     private:
         size_t display_height_;
-        static constexpr char* kDefaultStyle = "\033[0m";
-        static constexpr char* kRedColorStyle = "\033[31m";
-
     };
 
-} // namespace hw_interface
+} // namespace hw_interface1

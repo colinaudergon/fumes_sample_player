@@ -74,7 +74,7 @@ int app::audio::AudioPlayer::LoadFile(const char *path)
         return -1;
     }
 
-    glitch_engine_.OnNewFile(wav_file_handler_.GetSampleRate(), wav_file_handler_.GetDataSize());
+    RestartGlitchEngine();
 
     // Seed current_frame_index_/file_read_index_ from start_marker_, honoring is_reverse_.
     SeekStartMarker();
@@ -134,14 +134,14 @@ int app::audio::AudioPlayer::Read(wav::audio_frame_t &output, size_t n_frames)
         }
 
         glitch_engine_.ProcessFrame(output, output, n_frames, GetPlayheadFrame());
-        
-        if(glitch_enable_ && glitch_engine_.IsPitchModRequired())
+
+        if (glitch_enable_ && glitch_engine_.IsPitchModRequired())
         {
             playback_speed_ = glitch_engine_.GetNextPlaybackSpeed();
         }
         else if (glitch_enable_)
         {
-           playback_speed_=  glitch_engine_.GetPreviousPlaybackSpeed();
+            playback_speed_ = glitch_engine_.GetPreviousPlaybackSpeed();
         }
     }
     return static_cast<int>(output.n_frames);
@@ -277,6 +277,11 @@ void app::audio::AudioPlayer::TrackFileReadIndex(size_t bytes_read)
     }
 }
 
+void app::audio::AudioPlayer::SeekDataChunkStart()
+{
+    file_system_.Lseek(file_, kWavHeaderSize);
+}
+
 void app::audio::AudioPlayer::SeekStartChunk()
 {
     if (glitch_enable_ && glitch_engine_.IsGlitchFetchRequired())
@@ -337,9 +342,6 @@ void app::audio::AudioPlayer::SeekStartMarker()
     const size_t total_frames = GetTotalFrames();
     const size_t clamped_start_marker = std::min(start_marker_, total_frames);
 
-    // if(!glitch_enable_)
-    // {
-
     if (is_reverse_)
     {
         // start_marker_ == 0 means "unset": reverse then starts at the true end of the file,
@@ -350,14 +352,6 @@ void app::audio::AudioPlayer::SeekStartMarker()
     {
         current_frame_index_ = clamped_start_marker;
     }
-    // }
-
-    // else
-    // {
-    //     size_t fetched_frame = glitch_engine_.GlitchFetchFramePosition();
-    // }
-    // Byte offset matching current_frame_index_, used by IsAudioNewAudioDataRequired()'s
-    // end-of-file check.
     file_read_index_ = kWavHeaderSize + current_frame_index_ * frame_bytes_;
     has_wrapped_ = false;
 }
@@ -525,6 +519,50 @@ bool app::audio::AudioPlayer::IsOutpuBufferValid(wav::audio_frame_t &output)
     return true;
 }
 
+void app::audio::AudioPlayer::RestartGlitchEngine()
+{
+    glitch_engine_.OnNewFile(wav_file_handler_.GetSampleRate(), wav_file_handler_.GetDataSize());
+
+    // Pre-scan the whole file through the beat tracker so BeatTracker::beat_frame_tracker_ is
+    // already populated with detected beat positions (see GlitchEngine::TrackerProcessFrame())
+    // before playback/glitching starts, rather than only discovering them as Read() streams
+    // through the file for the first time. Reuses the time_adjust_source_l_/r_ scratch buffers
+    // the same way GetAudioDataToDisplay() does below, since nothing is streaming yet.
+    const size_t total_frames = GetTotalFrames();
+    size_t frames_scanned = 0;
+    while (frames_scanned < total_frames)
+    {
+        const size_t chunk_frames = std::min(total_frames - frames_scanned, kMaxReadFrames);
+        const size_t bytes_to_read = chunk_frames * frame_bytes_;
+
+        size_t bytes_read = 0;
+        FsResult read_result = file_system_.Read(file_, read_scratch_buffer_, bytes_to_read, &bytes_read);
+        if (read_result != FsResult::kOk || bytes_read == 0)
+        {
+            break; // short read/error: nothing more to scan.
+        }
+
+        wav::audio_frame_t chunk_output{time_adjust_source_l_, time_adjust_source_r_, 0};
+        int converted = wav_file_handler_.ReadData(read_scratch_buffer_, bytes_read, chunk_output, chunk_frames);
+        if (converted <= 0)
+        {
+            break;
+        }
+
+        glitch_engine_.TrackerProcessFrame(chunk_output, static_cast<size_t>(converted), frames_scanned);
+
+        frames_scanned += static_cast<size_t>(converted);
+        if (static_cast<size_t>(converted) < chunk_frames)
+        {
+            break; // short read: end of data chunk reached partway through.
+        }
+    }
+
+    // Restore the file cursor to LoadFile()'s postcondition (start of the data chunk) before
+    // SeekStartChunk()/Read() take over for actual playback.
+    SeekDataChunkStart();
+}
+
 int app::audio::AudioPlayer::Start()
 {
     is_playing_ = true;
@@ -564,7 +602,7 @@ int app::audio::AudioPlayer::SetPlaybackSpeed(float speed)
 
     glitch_engine_.SetPlaybackSpeed(speed);
     glitch_engine_.SavePreviousPlaybackSpeed(playback_speed_);
-    
+
     return 0;
 }
 
@@ -581,20 +619,6 @@ void app::audio::AudioPlayer::Freeze(bool enable)
 void app::audio::AudioPlayer::SetGlitching(bool enable)
 {
     glitch_enable_ = enable;
-    glitch_engine_.SetBitcrushEnable(glitch_enable_);
-    printf("Glitch enable: %d\n", enable);
-}
-
-void app::audio::AudioPlayer::SetGlitch(float amount)
-{
-    int reduction_factor = static_cast<int>(amount * 100);
-
-    glitch_engine_.SetStutterProbability(amount);
-
-    glitch_engine_.SetReductionFactor(reduction_factor);
-    glitch_engine_.SetSampleRateReduction(2 * reduction_factor);
-
-    glitch_engine_.EnableNoiseOutput(!(reduction_factor % 2));
 }
 
 void app::audio::AudioPlayer::EnableNoiseOutput(bool enable)
@@ -711,7 +735,7 @@ int app::audio::AudioPlayer::GetAudioDataToDisplay(uint16_t *data, size_t n_fram
         return -1;
     }
 
-    file_system_.Lseek(file_, kWavHeaderSize);
+    SeekDataChunkStart();
 
     size_t frames_consumed = 0;
     for (size_t column = 0; column < n_frames; column++)
@@ -764,7 +788,7 @@ int app::audio::AudioPlayer::GetAudioDataToDisplay(uint16_t *data, size_t n_fram
     // Restore the file cursor to LoadFile()'s postcondition (start of the data chunk), so
     // playback (which always re-syncs the cursor from current_frame_index_ before reading, see
     // SeekStartChunk()) is unaffected by this scan.
-    file_system_.Lseek(file_, kWavHeaderSize);
+    SeekDataChunkStart();
     return 0;
 }
 

@@ -139,6 +139,10 @@ namespace app::audio
     {
     public:
         void OnNewFile(size_t file_sample_rate, size_t file_duration);
+        void TrackerProcessFrame(audio_frame_t &input,size_t n_frames,size_t frame_index);
+
+        size_t NumberGlitchFrameCandidates();
+
         void ProcessFrame(audio_frame_t &input, audio_frame_t &output, size_t n_frames, size_t frame_index);
         bool IsGlitchFetchRequired();
         bool IsPitchModRequired();
@@ -154,11 +158,10 @@ namespace app::audio
         void EnablePitchMod(bool enable);
         void SetPitchModProbability(float value);
         void SavePreviousPlaybackSpeed(float prev_speed);
+        void FreezeEnable(bool enable);
+        bool IsFreezed();
 
     private:
-        // ---- Meta parameter
-        float amount_;
-
         // ---- local file parameters
         size_t file_duration_;
         size_t file_sample_rate_;
@@ -178,6 +181,8 @@ namespace app::audio
         // --- Beat tracking and repeat
         BeatTracker tracker_;
         float stutter_probability_{0.0f};
+        bool is_freeze_enabled_{false};
+
         // Set by IsGlitchFetchRequired() (called once per chunk from AudioPlayer::SeekStartChunk()
         // before ProcessFrame() runs) so ProcessFrame() can tell whether this chunk's audio came
         // from a fresh, linear read or from a glitch/beat-repeat jump to already-analyzed material.
@@ -205,16 +210,6 @@ namespace app::audio
         float pitch_mod_probability_{0.8f};
         float previous_playback_speed_{1.0f};
 
-        // Delay
-        static constexpr size_t kBufferLen = 4096 * 2;
-        float buffer_left_[kBufferLen];
-        float buffer_right_[kBufferLen];
-
-        float wet_mix_{0.9};
-        float feedback_{0.99};
-        size_t left_write_index_{0};
-        size_t right_write_index_{0};
-        float ProcessDelay(float input, bool left_channel);
         // ---- constants
         // Samples are expected in the [-1.0, 1.0] range, mirroring int16 PCM data. Scale up to
         // int16 range to reproduce the original integer quantization, then scale back down.

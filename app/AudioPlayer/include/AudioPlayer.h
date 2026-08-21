@@ -61,10 +61,7 @@ namespace app::audio
         /// already clamped to [kMinPlayBackSpeed, kMaxPlaybackSpeed].
         float GetPlaybackSpeed();
 
-        void Freeze(bool enable);
-
         void SetGlitching(bool enable);
-        void SetGlitch(float amount);
 
         // ---- Individual GlitchEngine parameter controls: direct pass-throughs to
         // glitch_engine_, distinct from SetGlitch()'s single composite "amount" knob above.
@@ -79,6 +76,7 @@ namespace app::audio
         size_t GetNumChannels();
         int GetBitsPerSample();
         int GetDataSize();
+        void Freeze(bool enable);
 
         bool IsNewAudioDataRequired();
 
@@ -144,6 +142,14 @@ namespace app::audio
         void SeekStartChunk();
         void SeekStartMarker();
 
+        /// @brief Seeks the currently open file_ back to the start of the data chunk (i.e.
+        /// LoadFile()'s postcondition), undoing any scan that streamed through file_ directly
+        /// (see LoadFile()'s beat-tracker pre-scan and GetAudioDataToDisplay()). Unlike
+        /// SeekStartChunk(), this always targets kWavHeaderSize itself and has no side effects
+        /// (no glitch-fetch decision, no dependency on current_frame_index_/n_frames_out_), so
+        /// it isn't a substitute for SeekStartChunk() during actual playback.
+        void SeekDataChunkStart();
+
         /// @brief Total number of frames in the currently loaded file's data chunk, or 0 if
         /// nothing is loaded / frame_bytes_ hasn't been computed yet.
         size_t GetTotalFrames();
@@ -183,6 +189,10 @@ namespace app::audio
         void SetMarker(float relative_position, bool is_start_marker);
 
         bool IsOutpuBufferValid(wav::audio_frame_t &output);
+
+        void RestartGlitchEngine();
+
+
         // ---- Playback state flags ----
 
         bool is_reverse_{false};

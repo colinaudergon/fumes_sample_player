@@ -191,12 +191,6 @@ int main()
                     audio_player.SetGlitching(glitch_enable);
                     std::printf("Glitch request: %.2f\n", command.parameter.delta);
                 }
-                else if (command.parameter.id == hw_interface::ParameterChangeId::kGlitchAmountParameterId)
-                {
-                    // command.parameter.delta is a relative amount in [0.0, 1.0].
-                    audio_player.SetGlitch(command.parameter.delta);
-                    std::printf("Glitch amount set to %.3f\n", command.parameter.delta);
-                }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kNoiseOutputParameterId)
                 {
                     bool noise_output_enable = command.parameter.delta == 1.0;
