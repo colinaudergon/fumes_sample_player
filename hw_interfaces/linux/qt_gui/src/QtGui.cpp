@@ -388,6 +388,38 @@ void hw_interface::QtGui::SetupWindow()
 
         reduction_factor_label->setText(QString("Reduction Factor: %1").arg(value)); });
 
+    QPushButton *click_output_button = new QPushButton("Click Output", central);
+    click_output_button->setCheckable(true);
+
+    glitch_layout->addWidget(click_output_button, 10, 0);
+
+    QObject::connect(click_output_button, &QPushButton::toggled, [this](bool checked)
+                      {
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kClickOutputParameterId;
+        event.parameter.delta = checked ? 1.0f : 0.0f;
+        PushEvent(event); });
+
+    QLabel *click_density_label = new QLabel("Click Density: 0%", central);
+    QSlider *click_density_slider = new QSlider(Qt::Horizontal, central);
+    click_density_slider->setRange(0, kMarkerSliderSteps);
+
+    glitch_layout->addWidget(click_density_label, 11, 0, 1, 3);
+    glitch_layout->addWidget(click_density_slider, 12, 0, 1, 3);
+
+    QObject::connect(click_density_slider, &QSlider::valueChanged, [this, click_density_label](int value)
+                      {
+        const float density = static_cast<float>(value) / static_cast<float>(kMarkerSliderSteps);
+
+        InputEvent event;
+        event.type = InputEventType::kParameterChangeEvent;
+        event.parameter.id = ParameterChangeId::kClickDensityParameterId;
+        event.parameter.delta = density;
+        PushEvent(event);
+
+        click_density_label->setText(QString("Click Density: %1%").arg(density * 100.0f, 0, 'f', 1)); });
+
     layout->addWidget(glitch_group, 10, 0, 1, 2);
 
     // -- Status label + waveform draw area -----------------------------------------------------

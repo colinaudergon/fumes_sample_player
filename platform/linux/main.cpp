@@ -233,6 +233,18 @@ int main()
                     audio_player.SetReductionFactor(static_cast<int>(command.parameter.delta));
                     std::printf("Reduction factor set to %.0f\n", command.parameter.delta);
                 }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kClickOutputParameterId)
+                {
+                    bool click_output_enable = command.parameter.delta == 1.0;
+                    audio_player.EnableClickOutput(click_output_enable);
+                    std::printf("Click output request: %.2f\n", command.parameter.delta);
+                }
+                else if (command.parameter.id == hw_interface::ParameterChangeId::kClickDensityParameterId)
+                {
+                    // command.parameter.delta is an absolute density in [0.0, 1.0].
+                    audio_player.SetClickDensity(command.parameter.delta);
+                    std::printf("Click density set to %.3f\n", command.parameter.delta);
+                }
                 else if (command.parameter.id == hw_interface::ParameterChangeId::kStartMarkerParameterId)
                 {
                     // command.parameter.delta is a relative position in [0.0, 1.0] (fraction of

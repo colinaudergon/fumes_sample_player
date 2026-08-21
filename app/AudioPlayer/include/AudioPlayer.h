@@ -72,6 +72,8 @@ namespace app::audio
         void SetStutterProbability(float value);
         void SetSampleRateReduction(int value);
         void SetReductionFactor(int value);
+        void EnableClickOutput(bool enable);
+        void SetClickDensity(float value);
         int GetSampleRate();
         size_t GetNumChannels();
         int GetBitsPerSample();

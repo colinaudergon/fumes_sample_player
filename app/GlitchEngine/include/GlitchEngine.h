@@ -1,11 +1,26 @@
 #pragma once
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include "../../include/AudioTypes.h"
 #include "../lfsr/lfsr.h"
-
+#include <cstdio>
 namespace app::audio
 {
+
+    namespace
+    {
+        // ---- constants
+        // Samples are expected in the [-1.0, 1.0] range, mirroring int16 PCM data. Scale up to
+        // int16 range to reproduce the original integer quantization, then scale back down.
+        static constexpr float kInt16Max = 32767.0f;
+
+        // 2^32, normalizes Lfsr::Process()'s uint32_t output to a uniform float in [0, 1) for
+        // probability rolls (see IsGlitchFetchRequired()).
+        static constexpr float kLfsrMax = 4294967296.0f;
+        static constexpr float kHalfUint32Range = 2147483648.0f; // 2^31
+        static constexpr float kSampleRate = 44100.0f;
+    }
 
     class EnvFollower
     {
@@ -135,11 +150,91 @@ namespace app::audio
         BeatState state_{BeatState::kArmed};
     };
 
+    class ClickGenerator
+    {
+    public:
+        enum class ClickState : uint8_t
+        {
+            kArmed = 0,
+            kTrigggered
+        };
+
+        float Process()
+        {
+
+            uint32_t value = trig_rnd_.Process();
+            uint32_t amplitude = ampl_rnd_.Process();
+
+            uint32_t threshold = static_cast<uint32_t>(density_ * static_cast<double>(UINT32_MAX));
+
+            switch (state_)
+            {
+            case ClickState::kArmed:
+                if (value < threshold)
+                {
+                    decay_coeff_ = static_cast<float>(decay_rnd_.Process()) / static_cast<float>(UINT32_MAX);
+                    duration_ = static_cast<size_t>(1 + (amplitude % kMaxLen));
+                    float centered_amplitude = static_cast<float>(amplitude) - kHalfUint32Range;
+                    output_value_ = centered_amplitude / kHalfUint32Range;
+                    state_ = ClickState::kTrigggered;
+                }
+                else
+                {
+                    output_value_ = 0.0f;
+                }
+                break;
+            case ClickState::kTrigggered:
+                output_value_ *= decay_coeff_;
+                duration_--;
+                if (duration_ == 0)
+                {
+                    state_ = ClickState::kArmed;
+                }
+
+                break;
+            default:
+                break;
+            }
+
+            return output_value_;
+        }
+
+        void SetDensity(float density)
+        {
+            density_ = density;
+            if (density_ < 0)
+            {
+                density_ *= (-1);
+            }
+
+            if (density_ > kMaxDensity)
+            {
+                density_ = kMaxDensity;
+            }
+            printf("Density: %f\n", density_);
+        }
+
+    private:
+        ClickState state_{ClickState::kArmed};
+
+        Lfsr trig_rnd_{0xDEADBEEF};
+        Lfsr ampl_rnd_{0xDEADACAB};
+        Lfsr decay_rnd_{0xDEAFACAB};
+
+        static constexpr uint32_t kMaxLen{3};
+        size_t duration_{0};
+
+        static constexpr float kMaxDensity{0.005};
+        float density_{0.0f};
+        float output_value_{0.0f};
+        float decay_coeff_{0.0f};
+    };
+
     class GlitchEngine
     {
     public:
         void OnNewFile(size_t file_sample_rate, size_t file_duration);
-        void TrackerProcessFrame(audio_frame_t &input,size_t n_frames,size_t frame_index);
+        void TrackerProcessFrame(audio_frame_t &input, size_t n_frames, size_t frame_index);
 
         size_t NumberGlitchFrameCandidates();
 
@@ -160,6 +255,8 @@ namespace app::audio
         void SavePreviousPlaybackSpeed(float prev_speed);
         void FreezeEnable(bool enable);
         bool IsFreezed();
+        void EnableClickOutput(bool enable);
+        void SetClickDensity(float value);
 
     private:
         // ---- local file parameters
@@ -210,14 +307,9 @@ namespace app::audio
         float pitch_mod_probability_{0.8f};
         float previous_playback_speed_{1.0f};
 
-        // ---- constants
-        // Samples are expected in the [-1.0, 1.0] range, mirroring int16 PCM data. Scale up to
-        // int16 range to reproduce the original integer quantization, then scale back down.
-        static constexpr float kInt16Max = 32767.0f;
+        // ---- click generator
+        ClickGenerator click_generator_;
 
-        // 2^32, normalizes Lfsr::Process()'s uint32_t output to a uniform float in [0, 1) for
-        // probability rolls (see IsGlitchFetchRequired()).
-        static constexpr float kLfsrMax = 4294967296.0f;
-        static constexpr float kHalfUint32Range = 2147483648.0f; // 2^31
+        bool click_output_enabled_{false};
     };
 } // namespace app::audio

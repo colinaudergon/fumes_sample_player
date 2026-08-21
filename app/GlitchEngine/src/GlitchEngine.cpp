@@ -75,6 +75,13 @@ void app::audio::GlitchEngine::ProcessFrame(audio_frame_t &input, audio_frame_t 
             ++sample_counter_;
         }
 
+        if (click_output_enabled_)
+        {
+            const float click = click_generator_.Process();
+            output.audio_l[i] += click;
+            output.audio_r[i] += click;
+        }
+
         rnd_.Process();
     }
 }
@@ -220,6 +227,16 @@ void app::audio::GlitchEngine::FreezeEnable(bool enable)
 bool app::audio::GlitchEngine::IsFreezed()
 {
     return is_freeze_enabled_;
+}
+
+void app::audio::GlitchEngine::EnableClickOutput(bool enable)
+{
+    click_output_enabled_ = enable;
+}
+
+void app::audio::GlitchEngine::SetClickDensity(float value)
+{
+    click_generator_.SetDensity(value);
 }
 
 float app::audio::GlitchEngine::Quantize(float sample) const

@@ -656,6 +656,16 @@ void app::audio::AudioPlayer::SetReductionFactor(int value)
     glitch_engine_.SetReductionFactor(value);
 }
 
+void app::audio::AudioPlayer::EnableClickOutput(bool enable)
+{
+    glitch_engine_.EnableClickOutput(enable);
+}
+
+void app::audio::AudioPlayer::SetClickDensity(float value)
+{
+    glitch_engine_.SetClickDensity(value);
+}
+
 int app::audio::AudioPlayer::GetSampleRate()
 {
     return wav_file_handler_.GetSampleRate();

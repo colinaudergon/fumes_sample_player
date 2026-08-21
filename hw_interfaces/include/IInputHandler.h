@@ -29,6 +29,9 @@ namespace hw_interface
         kStutterProbabilityParameterId,
         kSampleRateReductionParameterId,
         kReductionFactorParameterId,
+        // ---- Click generator controls (see GlitchEngine::ClickGenerator).
+        kClickOutputParameterId,
+        kClickDensityParameterId,
 
     };
 
