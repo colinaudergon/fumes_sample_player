@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
 #
-# make_disk_image_macos.sh - Packs a folder's contents into a FAT disk image sized to fit it,
+# make_disk_image_linux.sh - Packs a folder's contents into a FAT disk image sized to fit it,
 # using the make_disk_image CLI tool built from platform/linux/tools/make_disk_image.cpp (see
-# README.md's "Option A - Native build" section).
+# README.md's "Option A - Native build" section). Linux/WSL counterpart of
+# scripts/make_disk_image_macos.sh.
 #
 # Usage:
-#   scripts/make_disk_image_macos.sh <source_folder> [output_image.img] [build_dir]
+#   scripts/make_disk_image_linux.sh <source_folder> [output_image.img] [build_dir]
 #
 #   source_folder   Folder whose contents get packed into the image (required).
 #   output_image    Path to the disk image to create. Defaults to "disk.img" in the repo root.
-#   build_dir       Build directory make_disk_image lives in (or gets built into if missing).
-#                   Defaults to "build-macos" (matching scripts/build_macos.sh).
+#   build_dir       Build directory make_disk_image lives in (or gets configured/built into if
+#                   missing). Defaults to "build" (matching README.md's native build dir).
 #
 # The image is sized from the folder's actual on-disk usage (via `du`) plus a safety margin, so
 # it comfortably fits the FAT filesystem's own metadata (boot sector, FAT tables, root
 # directory) on top of the file data itself, instead of relying on make_disk_image's fixed
 # 32 MiB default (see its --help/usage banner). If make_disk_image isn't built yet, this script
-# builds it via scripts/build_macos.sh first.
+# configures/builds it via CMake first (see README.md's "Option A - Native build" for the
+# underlying commands).
 set -euo pipefail
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo "error: this script is for macOS only (detected: $(uname -s))" >&2
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "error: this script is for Linux (incl. WSL) only (detected: $(uname -s))" >&2
     exit 1
 fi
 
@@ -34,7 +36,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SOURCE_FOLDER="$1"
 OUTPUT_IMAGE="${2:-${REPO_ROOT}/disk.img}"
-BUILD_DIR="${3:-${REPO_ROOT}/build-macos}"
+BUILD_DIR="${3:-${REPO_ROOT}/build}"
 
 if [[ ! -d "${SOURCE_FOLDER}" ]]; then
     echo "error: source folder does not exist or is not a directory: ${SOURCE_FOLDER}" >&2
@@ -53,8 +55,10 @@ fi
 
 MAKE_DISK_IMAGE_BIN="${BUILD_DIR}/make_disk_image"
 if [[ ! -x "${MAKE_DISK_IMAGE_BIN}" ]]; then
-    echo "==> make_disk_image not found at ${MAKE_DISK_IMAGE_BIN}; building it via build_macos.sh..."
-    "${SCRIPT_DIR}/build_macos.sh" "$(basename "${BUILD_DIR}")"
+    echo "==> make_disk_image not found at ${MAKE_DISK_IMAGE_BIN}; configuring/building it..."
+    cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}"
+    JOBS="$(nproc 2>/dev/null || echo 4)"
+    cmake --build "${BUILD_DIR}" --target make_disk_image -j "${JOBS}"
 fi
 
 if [[ ! -x "${MAKE_DISK_IMAGE_BIN}" ]]; then
@@ -64,13 +68,13 @@ fi
 
 # ---- Size the image to fit SOURCE_FOLDER ----
 #
-# `du -sk` reports the folder's actual on-disk usage in 1 KiB blocks (portable across the BSD
-# `du` shipped on macOS and GNU `du`). Bytes are then padded with a 25% safety margin (FAT
-# metadata: boot sector, FAT tables, root directory entries all take extra space on top of raw
-# file bytes, and short 8.3 names round file sizes up to whole clusters -- see FatFsCore/
-# ff15/source/ffconf.h's FF_USE_LFN == 0 note in platform/linux/tools/make_disk_image.cpp),
-# then converted to whole 512-byte sectors and rounded up to a 1 MiB boundary for a tidy image
-# size. A 4 MiB floor keeps tiny folders from producing a volume too small for FAT to format.
+# `du -sk` reports the folder's actual on-disk usage in 1 KiB blocks. Bytes are then padded
+# with a 25% safety margin (FAT metadata: boot sector, FAT tables, root directory entries all
+# take extra space on top of raw file bytes, and short 8.3 names round file sizes up to whole
+# clusters -- see FatFsCore/ff15/source/ffconf.h's FF_USE_LFN == 0 note in
+# platform/linux/tools/make_disk_image.cpp), then converted to whole 512-byte sectors and
+# rounded up to a 1 MiB boundary for a tidy image size. A 4 MiB floor keeps tiny folders from
+# producing a volume too small for FAT to format.
 FOLDER_KIB="$(du -sk "${SOURCE_FOLDER}" | awk '{print $1}')"
 FOLDER_BYTES=$((FOLDER_KIB * 1024))
 PADDED_BYTES=$((FOLDER_BYTES * 5 / 4))

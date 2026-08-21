@@ -100,6 +100,10 @@ with long-file-name support disabled (`FF_USE_LFN == 0`, see
 `lib/FatFsCore/ff15/source/ffconf.h`), so only 8.3 short filenames are supported — rename any
 files/folders with longer names before packing them.
 
+Alternatively, `scripts/make_disk_image_linux.sh <source_folder> [output_image.img]` builds
+`make_disk_image` if needed and sizes the image automatically from the folder's actual on-disk
+usage instead of guessing a sector count by hand.
+
 **macOS:** the same CMakeLists.txt above builds on macOS too (Qt6 Widgets + miniaudio both
 support it natively). Run `scripts/build_macos.sh` from the repo root to install the required
 Homebrew dependencies (Xcode Command Line Tools, Qt6, CMake) and build into `build-macos/` in
